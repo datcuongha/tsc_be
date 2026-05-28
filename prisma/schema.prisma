@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model invoiceIt {
+  soHd             Int
+  kyHieuHd         String             @db.VarChar(20)
+  ngayHd           String             @db.VarChar(50)
+  loaiHinh         String             @db.VarChar(20)
+  noiDung          String             @db.Text
+  tienThue         Int
+  tongTien         Int
+  createDate       DateTime?          @db.Timestamp(0)
+  userId           Int?
+  ptThanhToan      String             @db.VarChar(50)
+  mst              String?            @db.VarChar(20)
+  tenNcc           String?            @db.VarChar(255)
+  diaChi           String?            @db.VarChar(255)
+  soDt             Int?
+  email            String?            @db.VarChar(255)
+  stk              String?            @db.VarChar(50)
+  nganHang         String?            @db.VarChar(255)
+  webSite          String?            @db.VarChar(255)
+  soTienBangChu    String?            @db.VarChar(255)
+  tyGia            Int?
+  caNhan           String?            @db.VarChar(255)
+  file             String?            @db.VarChar(255)
+  id               Int                @id @default(autoincrement())
+  modifiedDate     DateTime?          @db.Timestamp(0)
+  status           Boolean?
+  users            users?             @relation(fields: [userId], references: [userId], onDelete: NoAction, onUpdate: NoAction, map: "invoiceIt_ibfk_1")
+  invoiceItDetails invoiceItDetails[]
+
+  @@unique([soHd, kyHieuHd])
+  @@index([userId], map: "userId")
+}
+
+model invoiceItDetails {
+  id                Int       @id @default(autoincrement())
+  danhSachHang      String    @db.VarChar(255)
+  dvt               String    @db.VarChar(20)
+  sl                Int
+  donGia            Int
+  thanhTienTruocVat Int
+  loaiThue          String    @db.VarChar(5)
+  tienThueDongHang  Int
+  thanhTien         Int
+  tongTien          Int
+  userId            Int?
+  createDate        DateTime? @db.Date
+  invoiceItId       Int
+  modifiedDate      DateTime? @db.Timestamp(0)
+  status            Boolean?
+  users             users?    @relation(fields: [userId], references: [userId], onDelete: NoAction, onUpdate: NoAction, map: "invoiceItDetails_ibfk_2")
+  invoiceIt         invoiceIt @relation(fields: [invoiceItId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "userId")
+  @@index([invoiceItId])
+}
+
+model users {
+  userId           Int                @id @default(autoincrement())
+  userName         String?            @unique @db.VarChar(100)
+  fullName         String?            @db.VarChar(255)
+  pass             String?            @db.VarChar(255)
+  email            String?            @db.VarChar(100)
+  address          String?            @db.VarChar(255)
+  brithday         DateTime?          @db.Timestamp(0)
+  phone            String?            @db.VarChar(20)
+  status           Boolean?
+  logo             String?            @db.VarChar(255)
+  refreshToken     String?            @db.VarChar(255)
+  vaiTroId         Int?
+  boPhanId         Int?
+  createDate       DateTime?          @db.Timestamp(0)
+  modifiedDate     DateTime?          @db.Timestamp(0)
+  authType         String?            @default("local") @db.VarChar(50)
+  invoiceIt        invoiceIt[]
+  invoiceItDetails invoiceItDetails[]
+  phieuDatHang     phieuDatHang[]
+  powerBi          powerBi[]
+  vaiTro           vaiTro?            @relation(fields: [vaiTroId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_ibfk_1")
+  boPhan           boPhan?            @relation(fields: [boPhanId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_ibfk_2")
+
+  @@index([boPhanId], map: "boPhanId")
+  @@index([vaiTroId], map: "vaiTroId")
+}
+
+model powerBi {
+  id           Int       @id @default(autoincrement())
+  title        String?   @db.VarChar(255)
+  link         String?   @db.VarChar(255)
+  userId       Int?
+  createDate   DateTime? @db.Timestamp(0)
+  status       Boolean?
+  modifiedDate DateTime? @db.Timestamp(0)
+  location     String?   @db.VarChar(255)
+  users        users?    @relation(fields: [userId], references: [userId], onDelete: NoAction, onUpdate: NoAction, map: "powerBi_ibfk_1")
+
+  @@index([userId], map: "userId")
+}
+
+model boPhan {
+  id           Int       @id @default(autoincrement())
+  name         String?   @db.VarChar(50)
+  status       Boolean?
+  createDate   DateTime? @db.Timestamp(0)
+  modifiedDate DateTime? @db.Timestamp(0)
+  users        users[]
+}
+
+model phanQuyen {
+  id               Int                @id @default(autoincrement())
+  name             String?            @db.VarChar(100)
+  code             String?            @unique(map: "code") @db.VarChar(100)
+  module           String?            @db.VarChar(100)
+  status           Boolean?
+  createDate       DateTime?          @db.Timestamp(0)
+  modifiedDate     DateTime?          @db.Timestamp(0)
+  vaiTro_phanQuyen vaiTro_phanQuyen[]
+}
+
+model vaiTro {
+  id               Int                @id @default(autoincrement())
+  name             String?            @db.VarChar(50)
+  dienGiai         String?            @db.VarChar(50)
+  status           Boolean?
+  createDate       DateTime?          @db.Timestamp(0)
+  modifiedDate     DateTime?          @db.Timestamp(0)
+  users            users[]
+  vaiTro_phanQuyen vaiTro_phanQuyen[]
+}
+
+model vaiTro_phanQuyen {
+  vaiTroId    Int
+  phanQuyenId Int
+  vaiTro      vaiTro    @relation(fields: [vaiTroId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "vaiTro_phanQuyen_ibfk_1")
+  phanQuyen   phanQuyen @relation(fields: [phanQuyenId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "vaiTro_phanQuyen_ibfk_2")
+
+  @@id([vaiTroId, phanQuyenId])
+  @@index([phanQuyenId], map: "phanQuyenId")
+}
+
+model detailPhieuDatHang {
+  id            Int           @id @default(autoincrement())
+  maPhieuId     Int?
+  maHang        String?       @db.VarChar(15)
+  tenSp         String?       @db.VarChar(255)
+  dvt           String?       @db.VarChar(10)
+  donGia        Decimal?      @db.Decimal(18, 4)
+  giamGia       Decimal?      @db.Decimal(18, 4)
+  thueSuat      String?       @db.VarChar(10)
+  soLuong       Int?
+  giaBan        Int?
+  kySoLieu      String?       @db.VarChar(255)
+  ghiChuHangHoa String?       @db.VarChar(255)
+  canhBao       String?       @db.VarChar(255)
+  slCoTheDat    String?       @db.VarChar(255)
+  tonCuoi       Int?
+  slKhoDat      Int?
+  slTonToiUu    Int?
+  slBanCuoi     Int?
+  slNhapNccCuoi Int?
+  ngayKhoDat    DateTime?     @db.Timestamp(0)
+  phieuDatHang  phieuDatHang? @relation(fields: [maPhieuId], references: [id], onDelete: Cascade, map: "detailPhieuDatHang_ibfk_1")
+
+  @@index([maPhieuId], map: "maPhieuId")
+}
+
+model phieuDatHang {
+  id                 Int                  @id @default(autoincrement())
+  maPhieu            String?              @db.VarChar(50)
+  tenNcc             String?              @db.VarChar(255)
+  congTy             String?              @db.VarChar(255)
+  diaChi             String?              @db.VarChar(255)
+  mst                String?              @db.VarChar(20)
+  ghiChuHopDong      String?              @db.VarChar(255)
+  createDate         DateTime?            @db.Timestamp(0)
+  modifiedDate       DateTime?            @db.Timestamp(0)
+  userId             Int?
+  status             Boolean?
+  detailPhieuDatHang detailPhieuDatHang[]
+  detailPhieuDeXuat  detailPhieuDeXuat[]
+  users              users?               @relation(fields: [userId], references: [userId], onDelete: NoAction, onUpdate: NoAction, map: "phieuDatHang_ibfk_1")
+
+  @@index([userId], map: "userId")
+}
+
+model detailPhieuDeXuat {
+  id            Int           @id @default(autoincrement())
+  maPhieuId     Int?
+  chiNhanh      String?       @db.VarChar(20)
+  maHang        String?       @db.VarChar(255)
+  tenNhaCungCap String?       @db.VarChar(255)
+  tenHang       String?       @db.VarChar(255)
+  nhapChuyen    Int?
+  xuatBan       Int?
+  tonCuoi       Int?
+  slKhoDat      Int?
+  giaVon        Int?
+  giaBan        Int?
+  canhBao       String?       @db.VarChar(255)
+  ghiChu        String?       @db.VarChar(255)
+  thuMuaNhap    Int?
+  ngayKhoDat    DateTime?     @db.Timestamp(0)
+  phieuDatHang  phieuDatHang? @relation(fields: [maPhieuId], references: [id], onDelete: Cascade, map: "detailPhieuDeXuat_ibfk_1")
+
+  @@index([maPhieuId], map: "maPhieuId")
+}
