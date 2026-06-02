@@ -184,6 +184,7 @@ model phieuDatHang {
   modifiedDate       DateTime?            @db.Timestamp(0)
   userId             Int?
   status             Boolean?
+  maDatHangNhap      String?              @db.VarChar(255)
   detailPhieuDatHang detailPhieuDatHang[]
   detailPhieuDeXuat  detailPhieuDeXuat[]
   users              users?               @relation(fields: [userId], references: [userId], onDelete: NoAction, onUpdate: NoAction, map: "phieuDatHang_ibfk_1")
@@ -211,4 +212,20 @@ model detailPhieuDeXuat {
   phieuDatHang  phieuDatHang? @relation(fields: [maPhieuId], references: [id], onDelete: Cascade, map: "detailPhieuDeXuat_ibfk_1")
 
   @@index([maPhieuId], map: "maPhieuId")
+}
+
+model history {
+  id          Int       @id @default(autoincrement())
+  userEdit    String?   @db.VarChar(100)
+  module      String?   @db.VarChar(50)
+  action      String?   @db.VarChar(50)
+  recordId    String?   @db.VarChar(100)
+  description String?   @db.Text
+  oldData     Json?
+  newData     Json?
+  createDate  DateTime? @default(now()) @db.Timestamp(0)
+
+  @@index([createDate], map: "idx_created_at")
+  @@index([module], map: "idx_module")
+  @@index([userEdit], map: "idx_user")
 }

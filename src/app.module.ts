@@ -18,6 +18,7 @@ import { PhanquyenModule } from './phanquyen/phanquyen.module';
 import { PythonModule } from './python/python.module';
 import { DatHangModule } from './dat-hang/dat-hang.module';
 import { SoHoaModule } from './so-hoa/so-hoa.module';
+import { HistoryModule } from './history/history.module';
 @Module({
   imports: [
     UserModule,
@@ -44,6 +45,7 @@ import { SoHoaModule } from './so-hoa/so-hoa.module';
     PythonModule,
     DatHangModule,
     SoHoaModule,
+    HistoryModule,
   ],
 
   controllers: [AppController],

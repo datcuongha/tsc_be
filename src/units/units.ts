@@ -11,3 +11,10 @@ export function toSlug(str: string) {
     .replace(/[^a-z0-9-]/g, '')
     .replace(/-+/g, '-');
 }
+
+const LOCAL_API = 'http://localhost:8000';
+const SERVER_API = 'http://10.1.48.35:8000';
+
+// export const API_URL =
+//   process.env.NODE_ENV === 'development' ? LOCAL_API : SERVER_API;
+export const API_URL = SERVER_API;

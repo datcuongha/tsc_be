@@ -13,14 +13,14 @@ export class DatHangService {
         detailPhieuDeXuat: true,
       },
       orderBy: {
-        maPhieu: 'desc',
+        id: 'desc',
       },
     });
     return { message: 'Thành công', content, date: new Date() };
   }
 
   // ----- CẬP NHẬP THÔNG TIN ĐƠN ĐỀ XUẤT ----- //
-  async editDonDeXuat(body: any) {
+  async editDonDeXuat(body: any, currentUser: string) {
     const checkMaPhieu = await this.prisma.phieuDatHang.findFirst({
       where: {
         id: body.id,
@@ -36,7 +36,90 @@ export class DatHangService {
         HttpStatus.BAD_REQUEST,
       );
     }
+    // Lưu dữ liệu cũ trước khi update
+    const oldDataMap = new Map();
 
+    for (const item of body.detailPhieuDatHang) {
+      const oldItem = await this.prisma.detailPhieuDatHang.findUnique({
+        where: {
+          id: Number(item.id),
+        },
+      });
+
+      if (oldItem) {
+        oldDataMap.set(Number(item.id), oldItem);
+      }
+    }
+    const fieldLabels = {
+      kySoLieu: 'Kỳ số liệu',
+      giamGia: 'Giảm giá',
+      ghiChuHangHoa: 'Ghi chú hàng hóa',
+    };
+
+    // So sánh dữ liệu cũ và mới
+    const oldData: any[] = [];
+    const newData: any[] = [];
+    const changes: string[] = [];
+
+    for (const item of body.detailPhieuDatHang) {
+      const oldItem: any = oldDataMap.get(Number(item.id));
+
+      if (!oldItem) continue;
+
+      const diff: any = {};
+
+      if (Number(oldItem.kySoLieu) !== Number(item.kySoLieu)) {
+        diff.kySoLieu = {
+          old: oldItem.kySoLieu,
+          new: item.kySoLieu,
+        };
+      }
+      if (Number(oldItem.giamGia) !== Number(item.giamGia)) {
+        diff.giamGia = {
+          old: oldItem.giamGia,
+          new: Number(item.giamGia),
+        };
+      }
+
+      if ((oldItem.ghiChuHangHoa || '') !== (item.ghiChuHangHoa || '')) {
+        diff.ghiChuHangHoa = {
+          old: oldItem.ghiChuHangHoa || '',
+          new: item.ghiChuHangHoa || '',
+        };
+      }
+
+      if (Object.keys(diff).length > 0) {
+        const fieldsChanged = Object.entries(diff)
+          .map(([key, value]: any) => {
+            const label = fieldLabels[key] || key;
+
+            return `${label}: "${value.old}" → "${value.new}"`;
+          })
+          .join('\n');
+
+        changes.push(
+          `${oldItem.maHang} - ${oldItem.tenHang}: ${fieldsChanged}`,
+        );
+
+        oldData.push({
+          id: oldItem.id,
+          maHang: oldItem.maHang,
+          kySoLieu: oldItem.kySoLieu,
+          giamGia: oldItem.giamGia,
+          ghiChuHangHoa: oldItem.ghiChuHangHoa,
+        });
+
+        newData.push({
+          id: oldItem.id,
+          maHang: oldItem.maHang,
+          kySoLieu: item.kySoLieu,
+          giamGia: Number(item.giamGia),
+          ghiChuHangHoa: item.ghiChuHangHoa,
+        });
+      }
+    }
+
+    // Update dữ liệu
     await Promise.all(
       body.detailPhieuDatHang.map((item: any) =>
         this.prisma.detailPhieuDatHang.update({
@@ -61,13 +144,31 @@ export class DatHangService {
       },
     });
 
+    // Lưu lịch sử
+    await this.prisma.history.create({
+      data: {
+        userEdit: currentUser,
+        module: 'DON-DE-XUAT',
+        action: 'CẬP NHẬT',
+        recordId: String(body.id),
+        description:
+          changes.length > 0
+            ? `Phiếu ${checkMaPhieu.maPhieu}:\n${changes
+                .map((item) => `- ${item}`)
+                .join('\n')}`
+            : `Phiếu ${checkMaPhieu.maPhieu}: Không có thay đổi dữ liệu`,
+        oldData,
+        newData,
+      },
+    });
+
     return {
       message: 'Cập nhật thành công',
     };
   }
 
   // ----- CẬP NHẬT THÔNG TIN TM DUYỆT SỐ LƯỢNG ----- //
-  async editDatHangTM(body: any) {
+  async editDatHangTM(body: any, currentUser: string) {
     const checkMaPhieu = await this.prisma.phieuDatHang.findFirst({
       where: {
         id: body.maPhieuId,
@@ -82,6 +183,50 @@ export class DatHangService {
         },
         HttpStatus.BAD_REQUEST,
       );
+    }
+
+    const oldDataMap = new Map();
+
+    for (const item of body.details) {
+      const oldItem = await this.prisma.detailPhieuDeXuat.findUnique({
+        where: {
+          id: Number(item.id),
+        },
+      });
+
+      if (oldItem) {
+        oldDataMap.set(item.id, oldItem);
+      }
+    }
+
+    const changes: string[] = [];
+    const oldData: any[] = [];
+    const newData: any[] = [];
+
+    for (const item of body.details) {
+      const oldItem: any = oldDataMap.get(item.id);
+
+      if (!oldItem) continue;
+
+      if (Number(oldItem.thuMuaNhap) !== Number(item.thuMuaNhap)) {
+        changes.push(
+          `${item.maHang} - ${item.tenHang}: SL thu mua đề xuất "${oldItem.thuMuaNhap}" → "${item.thuMuaNhap}"`,
+        );
+
+        oldData.push({
+          id: oldItem.id,
+          maHang: oldItem.maHang,
+          tenHang: oldItem.tenHang,
+          thuMuaNhap: oldItem.thuMuaNhap,
+        });
+
+        newData.push({
+          id: item.id,
+          maHang: item.maHang,
+          tenHang: item.tenHang,
+          thuMuaNhap: item.thuMuaNhap,
+        });
+      }
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -136,6 +281,23 @@ export class DatHangService {
           modifiedDate: new Date(),
         },
       });
+    });
+
+    await this.prisma.history.create({
+      data: {
+        userEdit: currentUser,
+        module: 'DON-DAT-HANG',
+        action: 'CẬP NHẬT',
+        recordId: String(body.maPhieuId),
+        description:
+          changes.length > 0
+            ? `Phiếu ${checkMaPhieu.maPhieu}: \n${changes
+                .map((item) => `- ${item}`)
+                .join('\n')}`
+            : `Phiếu ${checkMaPhieu.maPhieu}: Không có thay đổi dữ liệu`,
+        oldData,
+        newData,
+      },
     });
 
     return {

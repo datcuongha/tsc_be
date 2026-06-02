@@ -2,10 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import FormData = require('form-data');
 import fetch from 'node-fetch';
+import { API_URL } from 'src/units/units';
 
 @Injectable()
 export class PythonService {
   prisma = new PrismaClient();
+
   // ----- XỬ LÝ TỔNG HỢP XNT CHI TIẾT VÀ PHIẾU ĐẶT HÀNG ----- //
   async callPython(
     // userId: string,
@@ -26,7 +28,7 @@ export class PythonService {
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
 
-    const res = await fetch('http://localhost:8000/pivot', {
+    const res = await fetch(`${API_URL}/pivot`, {
       method: 'POST',
       body: formData,
       headers: formData.getHeaders(),
@@ -41,7 +43,7 @@ export class PythonService {
   }
 
   // ----- XỬ LÝ TỔNG HỢP XUẤT RA PHIÊU ĐẶT HÀNG ----- //
-  async processTotal(payload: any) {
+  async processTotal(payload: any, currentUser: string) {
     const userId = payload.userId;
 
     const items = Object.entries(payload)
@@ -51,7 +53,7 @@ export class PythonService {
     if (!items.length) {
       throw new Error('Không có dữ liệu gửi lên');
     }
-    const res = await fetch('http://localhost:8000/pivotTotal', {
+    const res = await fetch(`${API_URL}/pivotTotal`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -74,8 +76,9 @@ export class PythonService {
       const data = supplierData as any;
 
       const productRows = data.byProduct || [];
-      
+
       const branchRows = data.byBranch || [];
+      console.log(branchRows);
 
       if (!productRows.length) {
         continue;
@@ -119,7 +122,11 @@ export class PythonService {
       }
 
       const maPhieu = `${prefix}${String(nextNumber).padStart(3, '0')}${suffix}`;
-
+      const maDatHangNhap = [
+        ...new Set(
+          productRows.map((i) => i['Mã đặt hàng nhập']).filter(Boolean),
+        ),
+      ].join(', ');
       const phieu = await this.prisma.phieuDatHang.create({
         data: {
           maPhieu,
@@ -128,6 +135,7 @@ export class PythonService {
           ghiChuHopDong: first['Ghi chú hợp đồng'] || '',
           diaChi: first['Địa chỉ'] || '',
           mst: first['Mã số thuế'] || '',
+          maDatHangNhap: maDatHangNhap,
           createDate: new Date(),
           userId: Number(userId),
           status: true,
@@ -185,7 +193,24 @@ export class PythonService {
           })),
         });
       }
+      const details = productRows.map(
+        (item: any) =>
+          `${item['Mã hàng']} - ${item['Tên hàng']} | SL: ${item['Số lượng']}`,
+      );
 
+      await this.prisma.history.create({
+        data: {
+          userEdit: currentUser,
+          module: 'DON-DAT-HANG',
+          action: 'TẠO',
+          recordId: String(phieu.id),
+          description: `Tạo phiếu ${maPhieu}\n${details
+            .map((x) => `- ${x}`)
+            .join('\n')}`,
+          oldData: {},
+          newData: productRows,
+        },
+      });
       createdOrders.push({
         maPhieu,
         supplier,

@@ -12,6 +12,7 @@ import { ldapLogin } from 'src/config/ldap.services';
 export class AuthService {
   prisma = new PrismaClient();
 
+  // ----- ĐĂNG NHẬP ----- //
   async login(body: any) {
     const { userName, password } = body;
 
@@ -87,7 +88,19 @@ export class AuthService {
         refreshToken: await bcrypt.hash(refToken, 10),
       },
     });
-
+    await this.prisma.history.create({
+      data: {
+        userEdit: user.fullName,
+        module: 'AUTH',
+        action: 'ĐĂNG NHẬP',
+        recordId: String(user.userId),
+        description: `${user.fullName || user.userName} đăng nhập hệ thống`,
+        newData: {
+          userName: user.userName,
+          authType: user.authType,
+        },
+      },
+    });
     return {
       message: 'Đăng nhập thành công',
       token,

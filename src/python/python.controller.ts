@@ -8,6 +8,7 @@ import {
   Delete,
   UseInterceptors,
   UploadedFiles,
+  Req,
 } from '@nestjs/common';
 import { PythonService } from './python.service';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
@@ -36,7 +37,8 @@ export class PythonController {
 
   // ----- XỬ LÝ TỔNG HỢP XUẤT RA PHIÊU ĐẶT HÀNG ----- //
   @Post('processTotal')
-  processTotal(@Body() item: any) {
-    return this.pythonService.processTotal(item);
+  processTotal(@Body() item: any, @Req() req: any) {
+    const currentUser = req.user.data.fullName;
+    return this.pythonService.processTotal(item, currentUser);
   }
 }
