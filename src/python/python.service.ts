@@ -15,7 +15,6 @@ export class PythonService {
     file2: Express.Multer.File,
   ) {
     const formData = new FormData();
-
     formData.append('file1', file1.buffer, {
       filename: 'file1.xlsx',
       contentType:
