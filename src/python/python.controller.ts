@@ -17,7 +17,7 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 export class PythonController {
   constructor(private readonly pythonService: PythonService) {}
 
-  // ----- XỬ LÝ TỔNG HỢP XNT CHI TIẾT VÀ PHIẾU ĐẶT HÀNG ----- //  @Post('process')
+  // ----- XỬ LÝ TỔNG HỢP XNT CHI TIẾT VÀ PHIẾU ĐẶT HÀNG ----- //
   @Post('process')
   @UseInterceptors(
     FileFieldsInterceptor([
@@ -32,7 +32,7 @@ export class PythonController {
       throw new Error('Thiếu file');
     }
 
-    return this.pythonService.callPython(file1, file2);
+    return this.pythonService.process(file1, file2);
   }
 
   // ----- XỬ LÝ TỔNG HỢP XUẤT RA PHIÊU ĐẶT HÀNG ----- //

@@ -6,7 +6,7 @@ const REF_JWT_SECRET = process.env.REF_JWT_SECRET as string;
 export const createToken = (data: object) => {
   return jwt.sign({ data }, JWT_SECRET, {
     algorithm: 'HS256',
-    expiresIn: '30s',
+    expiresIn: '30m',
   });
 };
 

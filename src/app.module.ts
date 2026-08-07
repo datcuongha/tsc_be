@@ -19,6 +19,8 @@ import { PythonModule } from './python/python.module';
 import { DatHangModule } from './dat-hang/dat-hang.module';
 import { SoHoaModule } from './so-hoa/so-hoa.module';
 import { HistoryModule } from './history/history.module';
+import { DanhmucModule } from './danhmuc/danhmuc.module';
+import { MailerModule } from '@nestjs-modules/mailer';
 @Module({
   imports: [
     UserModule,
@@ -46,6 +48,22 @@ import { HistoryModule } from './history/history.module';
     DatHangModule,
     SoHoaModule,
     HistoryModule,
+    DanhmucModule,
+    // Thư viện gửi mail
+    MailerModule.forRoot({
+      transport: {
+        host: process.env.MAIL_HOST,
+        port: Number(process.env.MAIL_PORT),
+        secure: false,
+        auth: {
+          user: process.env.MAIL_USER,
+          pass: process.env.MAIL_PASS,
+        },
+      },
+      defaults: {
+        from: `"BENTHANHTSC" <${process.env.MAIL_USER}>`,
+      },
+    }),
   ],
 
   controllers: [AppController],

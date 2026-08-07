@@ -24,12 +24,15 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@nestjs-modules/mailer": "^2.3.7",
     "@nestjs/common": "^10.4.22",
     "@nestjs/config": "^4.0.1",
     "@nestjs/core": "^10.4.22",
     "@nestjs/mapped-types": "*",
     "@nestjs/platform-express": "^10.4.22",
+    "@nestjs/platform-socket.io": "^11.1.28",
     "@nestjs/serve-static": "4",
+    "@nestjs/websockets": "^11.1.28",
     "@prisma/client": "^6.4.1",
     "@types/multer": "^2.0.0",
     "axios": "^1.16.1",
@@ -41,6 +44,7 @@
     "jsonwebtoken": "^9.0.3",
     "ldapjs": "^3.0.7",
     "node-cron": "^3.0.3",
+    "nodemailer": "^9.0.3",
     "p-limit": "^2.3.0",
     "prisma": "^6.4.1",
     "react-confetti": "^6.4.0",
@@ -48,7 +52,9 @@
     "react-slick": "^0.31.0",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.1",
-    "slick-carousel": "^1.8.1"
+    "slick-carousel": "^1.8.1",
+    "socket.io": "^4.8.3",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
@@ -63,6 +69,7 @@
     "@types/node": "^20.3.1",
     "@types/node-fetch": "^2.6.13",
     "@types/supertest": "^6.0.0",
+    "@types/xlsx": "^0.0.35",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "concurrently": "^9.2.0",

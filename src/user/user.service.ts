@@ -202,7 +202,6 @@ export class UserService {
         module: 'USER',
         action: 'CẬP NHẬT',
         recordId: String(data.userId),
-
         description:
           changes.length > 0
             ? `Cập nhật người dùng ${data.userName}: ${changes.join(', ')}`
