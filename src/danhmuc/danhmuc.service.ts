@@ -134,6 +134,127 @@ export class DanhmucService {
     for (let i = 0; i < body.length; i += chunkSize) {
       const chunk = body.slice(i, i + chunkSize);
 
+      // await Promise.all(
+      //   chunk.map(async (item) => {
+      //     try {
+      //       const maHang = item.SKU?.toString().trim();
+
+      //       if (!maHang) return;
+
+      //       const maNcc = item['Mã NCC']?.toString().trim() || null;
+
+      //       const vat = vatMap.get(maHang) || '0';
+
+      //       // tạo NCC nếu chưa có
+      //       if (maNcc) {
+      //         await this.prisma.dmncc.upsert({
+      //           where: {
+      //             maNcc,
+      //           },
+      //           update: {
+      //             modifiedDate: new Date(),
+      //           },
+      //           create: {
+      //             maNcc,
+      //             tenNcc: item['Thương hiệu'] || '',
+      //             status: false,
+      //             createDate: new Date(),
+      //           },
+      //         });
+      //       }
+
+      //       await this.prisma.dmhhFast.upsert({
+      //         where: {
+      //           maHang,
+      //         },
+      //         update: {
+      //           maNcc,
+      //           barcode: item.Barcode?.toString() || null,
+      //           tenHang: item['Tên sản phẩm + thuộc tính'] || '',
+      //           giaMua: Number(item['Giá mua từ NCC'] || 0),
+      //           giaBan: Number(item['Giá bán sau thuế'] || 0),
+      //           vat,
+      //           dvt: item['Đvt'] || null,
+      //           status: Boolean(item.status),
+      //           modifiedDate: new Date(),
+      //         },
+      //         create: {
+      //           maHang,
+      //           maNcc,
+      //           barcode: item.Barcode?.toString() || null,
+      //           tenHang: item['Tên sản phẩm + thuộc tính'] || '',
+      //           giaMua: Number(item['Giá mua từ NCC'] || 0),
+      //           giaBan: Number(item['Giá bán sau thuế'] || 0),
+      //           vat,
+      //           dvt: item['Đvt'] || null,
+      //           status: Boolean(item.status),
+      //           createDate: new Date(),
+      //         },
+      //       });
+      //     } catch (error) {
+      //       console.error(
+      //         `Lỗi import SKU: ${item?.SKU}`,
+      //         error instanceof Error ? error.message : error,
+      //       );
+      //     }
+      //   }),
+      // );
+      // ===============================
+      // 1. Lấy danh sách NCC duy nhất
+      // ===============================
+      const nccMap = new Map<
+        string,
+        {
+          maNcc: string;
+          tenNcc: string;
+        }
+      >();
+
+      for (const item of chunk) {
+        const maNcc = item['Mã NCC']?.toString().trim();
+
+        if (!maNcc) continue;
+
+        if (!nccMap.has(maNcc)) {
+          nccMap.set(maNcc, {
+            maNcc,
+            tenNcc: item['Thương hiệu']?.toString().trim() || '',
+          });
+        }
+      }
+
+      // ===============================
+      // 2. Tạo / cập nhật NCC
+      // ===============================
+      for (const ncc of nccMap.values()) {
+        try {
+          await this.prisma.dmncc.upsert({
+            where: {
+              maNcc: ncc.maNcc,
+            },
+            update: {
+              // Nếu muốn cập nhật tên NCC khi import
+              tenNcc: ncc.tenNcc,
+              modifiedDate: new Date(),
+            },
+            create: {
+              maNcc: ncc.maNcc,
+              tenNcc: ncc.tenNcc,
+              status: false,
+              createDate: new Date(),
+            },
+          });
+        } catch (error) {
+          console.error(
+            `❌ Lỗi NCC: ${ncc.maNcc}`,
+            error instanceof Error ? error.message : error,
+          );
+        }
+      }
+
+      // ===============================
+      // 3. Import SKU song song
+      // ===============================
       await Promise.all(
         chunk.map(async (item) => {
           try {
@@ -145,28 +266,11 @@ export class DanhmucService {
 
             const vat = vatMap.get(maHang) || '0';
 
-            // tạo NCC nếu chưa có
-            if (maNcc) {
-              await this.prisma.dmncc.upsert({
-                where: {
-                  maNcc,
-                },
-                update: {
-                  modifiedDate: new Date(),
-                },
-                create: {
-                  maNcc,
-                  tenNcc: item['Thương hiệu'] || '',
-                  status: false,
-                  createDate: new Date(),
-                },
-              });
-            }
-
             await this.prisma.dmhhFast.upsert({
               where: {
                 maHang,
               },
+
               update: {
                 maNcc,
                 barcode: item.Barcode?.toString() || null,
@@ -178,6 +282,7 @@ export class DanhmucService {
                 status: Boolean(item.status),
                 modifiedDate: new Date(),
               },
+
               create: {
                 maHang,
                 maNcc,
@@ -191,15 +296,16 @@ export class DanhmucService {
                 createDate: new Date(),
               },
             });
+
+            console.log(`✅ ${maHang}`);
           } catch (error) {
             console.error(
-              `Lỗi import SKU: ${item?.SKU}`,
+              `❌ Lỗi import SKU: ${item?.SKU}`,
               error instanceof Error ? error.message : error,
             );
           }
         }),
       );
-
       console.log(
         `Đã xử lý ${Math.min(i + chunkSize, body.length)}/${body.length}`,
       );
