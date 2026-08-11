@@ -25,10 +25,23 @@ export class DanhmucController {
   getAllKho() {
     return this.danhmucService.getAllKho();
   }
+
   // ----- LÁY DANH MỤC LOẠI VĂN BẢN ----- //
   @Get('getAllDmLoaiVb')
   getAllDmLoaiVb() {
     return this.danhmucService.getAllDmLoaiVb();
+  }
+
+  // ----- LẤY DANH MỤC NCC ----- //
+  @Get('getAllDmncc')
+  getAllDmncc() {
+    return this.danhmucService.getAllDmncc();
+  }
+
+  // ----- LẤY API DANH MỤC HÀNG HOÁ KIOT ----- //
+  @Get('syncDmhhKiot')
+  syncDmhhKiot() {
+    return this.danhmucService.syncDmhhKiot();
   }
 
   // ----- LẤY TOKEN KIOT ----- //
@@ -36,6 +49,7 @@ export class DanhmucController {
   getAccessTokenKiot() {
     return this.danhmucService.getAccessTokenKiot();
   }
+
   // ----- IMPORT DANH MỤC HÀNG HOÁ FAST ----- //
   @Post('importDmhh')
   @UseInterceptors(FileInterceptor('file'))
@@ -74,11 +88,5 @@ export class DanhmucController {
     const data = XLSX.utils.sheet_to_json(worksheet);
 
     return this.danhmucService.importDmncc(data);
-  }
-
-  // ----- LẤY DANH MỤC HÀNG HOÁ KIOT ----- //
-  @Get('syncDmhhKiot')
-  syncDmhhKiot() {
-    return this.danhmucService.syncDmhhKiot();
   }
 }

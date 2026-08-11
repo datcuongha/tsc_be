@@ -64,7 +64,13 @@ export class DanhmucService {
     }
   }
 
-  // ----- API DANH MỤC HÀNG HOÁ KIOT ----- //
+  // ----- LẤY DANH MỤC NCC -----//
+  async getAllDmncc() {
+    const content = await this.prisma.dmncc.findMany();
+    return { message: 'Thành công', content, date: new Date() };
+  }
+
+  // ----- LẤY API DANH MỤC HÀNG HOÁ KIOT ----- //
   async syncDmhhKiot() {
     const accessTokenKiot = await this.getAccessTokenKiot();
 

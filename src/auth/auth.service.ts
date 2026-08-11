@@ -69,12 +69,26 @@ export class AuthService {
       }
     }
 
+    // LẤY QUYỀN CỦA USER
+    const permissions = user.vaiTroId
+      ? await this.prisma.vaiTro_phanQuyen.findMany({
+          where: {
+            vaiTroId: user.vaiTroId,
+          },
+          include: {
+            phanQuyen: true,
+          },
+        })
+      : [];
+    const permissionCodes = permissions.map((item) => item.phanQuyen.code);
+
     // 🔥 3. TẠO TOKEN
     const token = createToken({
       userId: user.userId,
       vaiTroId: user.vaiTroId,
       email: user.email,
       fullName: user.fullName,
+      permissions: permissionCodes,
     });
 
     const refToken = createRefToken({
