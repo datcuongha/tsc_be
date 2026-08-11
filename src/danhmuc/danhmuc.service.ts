@@ -13,6 +13,9 @@ export class DanhmucService {
       include: {
         dmncc: true,
       },
+      orderBy: {
+        createDate: 'desc',
+      },
     });
     return { message: 'Thành công', content, date: new Date() };
   }
