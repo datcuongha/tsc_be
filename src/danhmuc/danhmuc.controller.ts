@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Controller,
   Get,
+  Param,
   Post,
   Query,
   UploadedFile,
@@ -97,5 +98,11 @@ export class DanhmucController {
     const data = XLSX.utils.sheet_to_json(worksheet);
 
     return this.danhmucService.importDmncc(data);
+  }
+
+  // ----- TÌM MÃ HÀNG ----- //
+  @Get('getDmhhByMaHang')
+  async getDmhhByMaHang(@Query('maHang') maHang: string) {
+    return this.danhmucService.getDmhhByMaHang(maHang);
   }
 }

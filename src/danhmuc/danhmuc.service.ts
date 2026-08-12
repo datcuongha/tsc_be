@@ -381,4 +381,34 @@ export class DanhmucService {
       message: 'Import nhà cung cấp thành công',
     };
   }
+
+  // ----- TÌM MÃ HÀNG ----- //
+  async getDmhhByMaHang(maHang: string) {
+    const content = await this.prisma.dmhhFast.findFirst({
+      where: {
+        maHang: maHang.trim(),
+      },
+      select: {
+        id: true,
+        maHang: true,
+        tenHang: true,
+        giaBan: true,
+        giaMua: true,
+        dvt: true,
+        vat: true,
+        dmncc: {
+          select: {
+            maNcc: true,
+            tenNcc: true,
+          },
+        },
+      },
+    });
+
+    return {
+      message: 'Thành công',
+      content,
+      date: new Date(),
+    };
+  }
 }
