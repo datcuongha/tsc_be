@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -10,14 +11,22 @@ import { DanhmucService } from './danhmuc.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import * as XLSX from 'xlsx';
 
-@Controller('api/danhmuc')
+@Controller('api/danhMuc')
 export class DanhmucController {
   constructor(private readonly danhmucService: DanhmucService) {}
 
   // ----- LẤY DANH MỤC HÀNG HOÁ ----- //
   @Get('getAllDmhh')
-  getAllDmhh() {
-    return this.danhmucService.getAllDmhh();
+  getAllDmhh(
+    @Query('page') page = '1',
+    @Query('limit') limit = '100',
+    @Query('search') search = '',
+  ) {
+    return this.danhmucService.getAllDmhh(
+      Number(page),
+      Number(limit),
+      search.trim(),
+    );
   }
 
   // ----- LẤY DANH MỤC KHO ----- //

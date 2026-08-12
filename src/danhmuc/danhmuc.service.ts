@@ -8,16 +8,52 @@ export class DanhmucService {
   prisma = new PrismaClient();
 
   // ----- LẤY DANH MỤC HÀNG HOÁ ----- //
-  async getAllDmhh() {
-    const content = await this.prisma.dmhhFast.findMany({
-      include: {
-        dmncc: true,
-      },
-      orderBy: {
-        createDate: 'desc',
-      },
-    });
-    return { message: 'Thành công', content, date: new Date() };
+  async getAllDmhh(page = 1, limit = 100, search = '') {
+    const skip = (page - 1) * limit;
+
+    const where = search
+      ? {
+          OR: [
+            {
+              maHang: {
+                contains: search,
+              },
+            },
+            {
+              tenHang: {
+                contains: search,
+              },
+            },
+          ],
+        }
+      : {};
+
+    const [content, total] = await Promise.all([
+      this.prisma.dmhhFast.findMany({
+        where,
+        include: {
+          dmncc: true,
+        },
+        orderBy: {
+          createDate: 'desc',
+        },
+        skip,
+        take: limit,
+      }),
+
+      this.prisma.dmhhFast.count({
+        where,
+      }),
+    ]);
+
+    return {
+      message: 'Thành công',
+      content,
+      total,
+      page,
+      limit,
+      date: new Date(),
+    };
   }
 
   // ----- LÁY DANH MỤC LOẠI VĂN BẢN ----- //
@@ -133,72 +169,6 @@ export class DanhmucService {
 
     for (let i = 0; i < body.length; i += chunkSize) {
       const chunk = body.slice(i, i + chunkSize);
-
-      // await Promise.all(
-      //   chunk.map(async (item) => {
-      //     try {
-      //       const maHang = item.SKU?.toString().trim();
-
-      //       if (!maHang) return;
-
-      //       const maNcc = item['Mã NCC']?.toString().trim() || null;
-
-      //       const vat = vatMap.get(maHang) || '0';
-
-      //       // tạo NCC nếu chưa có
-      //       if (maNcc) {
-      //         await this.prisma.dmncc.upsert({
-      //           where: {
-      //             maNcc,
-      //           },
-      //           update: {
-      //             modifiedDate: new Date(),
-      //           },
-      //           create: {
-      //             maNcc,
-      //             tenNcc: item['Thương hiệu'] || '',
-      //             status: false,
-      //             createDate: new Date(),
-      //           },
-      //         });
-      //       }
-
-      //       await this.prisma.dmhhFast.upsert({
-      //         where: {
-      //           maHang,
-      //         },
-      //         update: {
-      //           maNcc,
-      //           barcode: item.Barcode?.toString() || null,
-      //           tenHang: item['Tên sản phẩm + thuộc tính'] || '',
-      //           giaMua: Number(item['Giá mua từ NCC'] || 0),
-      //           giaBan: Number(item['Giá bán sau thuế'] || 0),
-      //           vat,
-      //           dvt: item['Đvt'] || null,
-      //           status: Boolean(item.status),
-      //           modifiedDate: new Date(),
-      //         },
-      //         create: {
-      //           maHang,
-      //           maNcc,
-      //           barcode: item.Barcode?.toString() || null,
-      //           tenHang: item['Tên sản phẩm + thuộc tính'] || '',
-      //           giaMua: Number(item['Giá mua từ NCC'] || 0),
-      //           giaBan: Number(item['Giá bán sau thuế'] || 0),
-      //           vat,
-      //           dvt: item['Đvt'] || null,
-      //           status: Boolean(item.status),
-      //           createDate: new Date(),
-      //         },
-      //       });
-      //     } catch (error) {
-      //       console.error(
-      //         `Lỗi import SKU: ${item?.SKU}`,
-      //         error instanceof Error ? error.message : error,
-      //       );
-      //     }
-      //   }),
-      // );
       // ===============================
       // 1. Lấy danh sách NCC duy nhất
       // ===============================
