@@ -105,7 +105,11 @@ export class DanhmucService {
 
   // ----- LẤY DANH MỤC NCC -----//
   async getAllDmncc() {
-    const content = await this.prisma.dmncc.findMany();
+    const content = await this.prisma.dmncc.findMany({
+      where: {
+        status: true,
+      },
+    });
     return { message: 'Thành công', content, date: new Date() };
   }
 

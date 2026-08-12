@@ -796,7 +796,7 @@ export class DatHangService {
 
             <br/>
 
-            <a href="http://10.1.52.16:3039/phe-duyet/${data.id}">
+            <a href="https://services.benthanhtsc.com/phe-duyet/${data.id}">
               Xem phiếu
             </a>
           `,
@@ -925,7 +925,7 @@ export class DatHangService {
 
               <br/>
 
-              <a href="http://10.1.52.16:3039/phe-duyet/${phieu.id}">
+            <a href="https://services.benthanhtsc.com/phe-duyet/${phieu.id}">
                 Xem phiếu
               </a>
             `,
