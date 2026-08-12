@@ -146,6 +146,19 @@ export class DanhmucService {
   async importDmhh(body: any[]) {
     const chunkSize = 100;
 
+    // xoá khoảng trắng
+    body = body.map((item) => {
+      const newItem: any = {};
+
+      Object.entries(item).forEach(([key, value]) => {
+        const normalizedKey = key.trim().replace(/\s+/g, ' ');
+
+        newItem[normalizedKey] = value;
+      });
+
+      return newItem;
+    });
+
     // Load VAT Kiot 1 lần
     const kiotProducts = await this.prisma.dmhhKiot.findMany({
       select: {
@@ -235,7 +248,15 @@ export class DanhmucService {
             const maNcc = item['Mã NCC']?.toString().trim() || null;
 
             const vat = vatMap.get(maHang) || '0';
-
+            console.log('COLUMNS:', Object.keys(item));
+            console.log('ITEM:', item);
+            console.log('IMPORT:', {
+              maHang,
+              giaMuaRaw: item['Giá mua từ NCC'],
+              giaMua: Number(item['Giá mua từ NCC'] || 0),
+              giaBanRaw: item['Giá bán sau thuế'],
+              giaBan: Number(item['Giá bán sau thuế'] || 0),
+            });
             await this.prisma.dmhhFast.upsert({
               where: {
                 maHang,
