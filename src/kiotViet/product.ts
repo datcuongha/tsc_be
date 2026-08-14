@@ -244,126 +244,13 @@ import pLimit from 'p-limit';
 const prisma = new PrismaClient();
 const limit = pLimit(10);
 
-// =====================================================
-// GET ALL PRODUCTS FROM KIOT
-// =====================================================
+const KIOT_API_URL = 'https://public.kiotapi.com/products';
+const KIOT_RETAILER = 'benthanhtsc';
 
-export const getAllProducts = async (accessTokenKiot: string) => {
-  const sync = await prisma.synsTimeKiot.findUnique({
-    where: {
-      keyName: 'LAST_SYNC_KIOT_PRODUCT',
-    },
-  });
-
-  const lastSyncTime = sync?.value;
-
-  const allProducts: any[] = [];
-
-  let currentItem = 0;
-
-  const pageSize = 100;
-
-  while (true) {
-    const response = await axios.get('https://public.kiotapi.com/products', {
-      headers: {
-        Authorization: accessTokenKiot,
-        Retailer: 'benthanhtsc',
-      },
-      params: {
-        currentItem,
-        pageSize,
-        includeInventory: true,
-
-        // Chỉ lấy sản phẩm thay đổi từ lần sync trước
-        lastModifiedFrom: lastSyncTime,
-      },
-    });
-
-    const products = response.data.data || [];
-
-    if (!products.length) {
-      break;
-    }
-
-    allProducts.push(...products);
-
-    console.log(`Đã lấy ${allProducts.length}/${response.data.total}`);
-
-    currentItem += pageSize;
-  }
-
-  return allProducts;
-};
+const LAST_SYNC_KEY = 'LAST_SYNC_KIOT_PRODUCT';
 
 // =====================================================
-// MAP PRODUCT
-// =====================================================
-
-const mapDmhhKiot = (product: any) => ({
-  createdDate: product.createdDate ?? null,
-
-  masterCode: product.masterCode ?? null,
-
-  masterProductId: product.masterProductId ?? null,
-
-  tradeMarkName: product.tradeMarkName ?? null,
-
-  tradeMarkId: product.tradeMarkId ?? null,
-
-  taxType: product.taxType ?? null,
-
-  taxRate:
-    product.taxRate !== undefined && product.taxRate !== null
-      ? product.taxRate.toString()
-      : null,
-
-  taxname: product.taxname ?? null,
-
-  retailerId: product.retailerId ?? null,
-
-  code: product.code ?? null,
-
-  barCode: product.barCode ?? null,
-
-  name: product.name ?? null,
-
-  fullName: product.fullName ?? null,
-
-  categoryId: product.categoryId ?? null,
-
-  categoryName: product.categoryName ?? null,
-
-  allowsSale: product.allowsSale ?? null,
-
-  type: product.type ?? null,
-
-  hasVariants: product.hasVariants ?? null,
-
-  basePrice: product.basePrice ?? null,
-
-  weight: product.weight ?? null,
-
-  unit: product.unit ?? null,
-
-  conversionValue: product.conversionValue ?? null,
-
-  modifiedDate: product.modifiedDate ?? null,
-
-  isActive: product.isActive ?? null,
-
-  description: product.description ?? null,
-
-  isRewardPoint: product.isRewardPoint ?? null,
-
-  isLotSerialControl: product.isLotSerialControl ?? null,
-
-  isBatchExpireControl: product.isBatchExpireControl ?? null,
-
-  orderTemplate: product.orderTemplate ?? null,
-});
-
-// =====================================================
-// HELPER: CHUYỂN TAX THÀNH ARRAY
+// HELPER
 // =====================================================
 
 const normalizeTaxArray = (tax: any): any[] => {
@@ -376,6 +263,151 @@ const normalizeTaxArray = (tax: any): any[] => {
   }
 
   return [tax];
+};
+
+// =====================================================
+// GET ALL PRODUCTS FROM KIOT
+// =====================================================
+
+export const getAllProducts = async (accessTokenKiot: string) => {
+  const sync = await prisma.synsTimeKiot.findUnique({
+    where: {
+      keyName: LAST_SYNC_KEY,
+    },
+  });
+
+  const lastSyncTime = sync?.value || undefined;
+
+  const allProducts: any[] = [];
+
+  let currentItem = 0;
+
+  const pageSize = 100;
+
+  while (true) {
+    try {
+      const response = await axios.get(KIOT_API_URL, {
+        headers: {
+          Authorization: accessTokenKiot,
+          Retailer: KIOT_RETAILER,
+        },
+
+        params: {
+          currentItem,
+          pageSize,
+
+          // Lấy inventory
+          includeInventory: true,
+
+          // Chỉ lấy sản phẩm thay đổi
+          ...(lastSyncTime
+            ? {
+                lastModifiedFrom: lastSyncTime,
+              }
+            : {}),
+        },
+      });
+
+      const products = response.data?.data || [];
+
+      if (!products.length) {
+        break;
+      }
+
+      allProducts.push(...products);
+
+      console.log(
+        `Đã lấy ${allProducts.length}/${response.data?.total ?? '?'}`,
+      );
+
+      currentItem += pageSize;
+
+      // Tránh trường hợp API trả ít hơn pageSize
+      if (products.length < pageSize) {
+        break;
+      }
+    } catch (error) {
+      console.error('❌ Lỗi lấy sản phẩm KiotViet:', error);
+
+      if (axios.isAxiosError(error)) {
+        console.error('Status:', error.response?.status);
+        console.error('Response:', error.response?.data);
+      }
+
+      throw error;
+    }
+  }
+
+  return allProducts;
+};
+
+// =====================================================
+// MAP PRODUCT
+// =====================================================
+
+const mapDmhhKiot = (product: any) => {
+  return {
+    createdDate: product.createdDate ?? null,
+
+    masterCode: product.masterCode ?? null,
+
+    masterProductId: product.masterProductId ?? null,
+
+    tradeMarkName: product.tradeMarkName ?? null,
+
+    tradeMarkId: product.tradeMarkId ?? null,
+
+    taxType: product.taxType ?? null,
+
+    taxRate:
+      product.taxRate !== undefined && product.taxRate !== null
+        ? String(product.taxRate)
+        : null,
+
+    taxname: product.taxname ?? null,
+
+    retailerId: product.retailerId ?? null,
+
+    code: product.code ?? null,
+
+    barCode: product.barCode ?? null,
+
+    name: product.name ?? null,
+
+    fullName: product.fullName ?? null,
+
+    categoryId: product.categoryId ?? null,
+
+    categoryName: product.categoryName ?? null,
+
+    allowsSale: product.allowsSale ?? null,
+
+    type: product.type ?? null,
+
+    hasVariants: product.hasVariants ?? null,
+
+    basePrice: product.basePrice ?? null,
+
+    weight: product.weight ?? null,
+
+    unit: product.unit ?? null,
+
+    conversionValue: product.conversionValue ?? null,
+
+    modifiedDate: product.modifiedDate ?? null,
+
+    isActive: product.isActive ?? null,
+
+    description: product.description ?? null,
+
+    isRewardPoint: product.isRewardPoint ?? null,
+
+    isLotSerialControl: product.isLotSerialControl ?? null,
+
+    isBatchExpireControl: product.isBatchExpireControl ?? null,
+
+    orderTemplate: product.orderTemplate ?? null,
+  };
 };
 
 // =====================================================
@@ -397,6 +429,12 @@ export const saveProductsToDatabase = async (products: any[]) => {
 
           purchaseTax,
         } = product;
+
+        if (!kiotProductId) {
+          console.error('❌ Sản phẩm không có ID:', product.code, product.name);
+
+          return;
+        }
 
         try {
           await prisma.$transaction(async (tx) => {
@@ -424,6 +462,10 @@ export const saveProductsToDatabase = async (products: any[]) => {
             // =================================================
 
             for (const inv of inventories) {
+              if (!inv.branchId) {
+                continue;
+              }
+
               await tx.inventoriesKiot.upsert({
                 where: {
                   kiotProductId_branchId: {
@@ -433,27 +475,27 @@ export const saveProductsToDatabase = async (products: any[]) => {
                 },
 
                 update: {
-                  productCode: inv.productCode,
+                  productCode: inv.productCode ?? null,
 
-                  productName: inv.productName,
+                  productName: inv.productName ?? null,
 
-                  branchName: inv.branchName,
+                  branchName: inv.branchName ?? null,
 
-                  cost: inv.cost,
+                  cost: inv.cost ?? 0,
 
-                  onHand: inv.onHand,
+                  onHand: inv.onHand ?? 0,
 
-                  reserved: inv.reserved,
+                  reserved: inv.reserved ?? 0,
 
-                  actualReserved: inv.actualReserved,
+                  actualReserved: inv.actualReserved ?? 0,
 
-                  minQuantity: inv.minQuantity,
+                  minQuantity: inv.minQuantity ?? 0,
 
-                  maxQuantity: inv.maxQuantity,
+                  maxQuantity: inv.maxQuantity ?? 0,
 
-                  isActive: inv.isActive,
+                  isActive: inv.isActive ?? true,
 
-                  onOrder: inv.onOrder,
+                  onOrder: inv.onOrder ?? 0,
                 },
 
                 create: {
@@ -461,27 +503,27 @@ export const saveProductsToDatabase = async (products: any[]) => {
 
                   branchId: inv.branchId,
 
-                  productCode: inv.productCode,
+                  productCode: inv.productCode ?? null,
 
-                  productName: inv.productName,
+                  productName: inv.productName ?? null,
 
-                  branchName: inv.branchName,
+                  branchName: inv.branchName ?? null,
 
-                  cost: inv.cost,
+                  cost: inv.cost ?? 0,
 
-                  onHand: inv.onHand,
+                  onHand: inv.onHand ?? 0,
 
-                  reserved: inv.reserved,
+                  reserved: inv.reserved ?? 0,
 
-                  actualReserved: inv.actualReserved,
+                  actualReserved: inv.actualReserved ?? 0,
 
-                  minQuantity: inv.minQuantity,
+                  minQuantity: inv.minQuantity ?? 0,
 
-                  maxQuantity: inv.maxQuantity,
+                  maxQuantity: inv.maxQuantity ?? 0,
 
-                  isActive: inv.isActive,
+                  isActive: inv.isActive ?? true,
 
-                  onOrder: inv.onOrder,
+                  onOrder: inv.onOrder ?? 0,
                 },
               });
             }
@@ -491,6 +533,10 @@ export const saveProductsToDatabase = async (products: any[]) => {
             // =================================================
 
             for (const attr of attributes) {
+              if (!attr.attributeName) {
+                continue;
+              }
+
               await tx.attributes.upsert({
                 where: {
                   kiotProductId_attributeName: {
@@ -501,7 +547,7 @@ export const saveProductsToDatabase = async (products: any[]) => {
                 },
 
                 update: {
-                  attributeValue: attr.attributeValue,
+                  attributeValue: attr.attributeValue ?? null,
                 },
 
                 create: {
@@ -509,84 +555,122 @@ export const saveProductsToDatabase = async (products: any[]) => {
 
                   attributeName: attr.attributeName,
 
-                  attributeValue: attr.attributeValue,
+                  attributeValue: attr.attributeValue ?? null,
                 },
               });
             }
 
             // =================================================
-            // 4. SALE TAX
+            // 4. THUẾ BÁN RA
+            //
+            // productTaxs:
+            //
+            // [
+            //   {
+            //     taxId: 3,
+            //     value: 8,
+            //     name: "VAT 8%"
+            //   }
+            // ]
+            //
+            // Đây mới là VAT mà bạn cần cho dmhhFast.vat
             // =================================================
 
             const saleTaxes = normalizeTaxArray(productTaxs);
 
             for (const tax of saleTaxes) {
+              const taxId = Number(tax.taxId);
+
+              if (!Number.isFinite(taxId)) {
+                continue;
+              }
+
               await tx.dmhhKiotTax.upsert({
                 where: {
                   kiotProductId_taxId: {
                     kiotProductId,
 
-                    taxId: Number(tax.taxId),
+                    taxId,
                   },
                 },
 
                 update: {
-                  name: tax.name,
+                  name: tax.name ?? null,
 
-                  value: tax.value,
+                  value:
+                    tax.value !== undefined && tax.value !== null
+                      ? Number(tax.value)
+                      : 0,
                 },
 
                 create: {
                   kiotProductId,
 
-                  taxId: Number(tax.taxId),
+                  taxId,
 
-                  name: tax.name,
+                  name: tax.name ?? null,
 
-                  value: tax.value,
+                  value:
+                    tax.value !== undefined && tax.value !== null
+                      ? Number(tax.value)
+                      : 0,
                 },
               });
             }
 
             // =================================================
-            // 5. PURCHASE TAX
+            // 5. THUẾ MUA VÀO
+            //
+            // purchaseTax của Kiot:
+            //
+            // {
+            //   taxId: 1,
+            //   value: 0,
+            //   name: "VAT 0%"
+            // }
+            //
+            // Cứ lưu ĐÚNG theo Kiot.
+            // Không dùng nó làm VAT bán.
             // =================================================
 
             const purchaseTaxes = normalizeTaxArray(purchaseTax);
 
-            // -------------------------------------------------
-            // CHỈ LẤY TAX ID = 1
-            // VAT mua vào
-            // -------------------------------------------------
+            for (const tax of purchaseTaxes) {
+              const taxId = Number(tax.taxId);
 
-            const purchaseVat = purchaseTaxes.find(
-              (tax) => Number(tax.taxId) === 1,
-            );
+              if (!Number.isFinite(taxId)) {
+                continue;
+              }
 
-            if (purchaseVat) {
               await tx.dnhhKiotPurchaseTax.upsert({
                 where: {
                   kiotProductId_taxId: {
                     kiotProductId,
 
-                    taxId: Number(purchaseVat.taxId),
+                    taxId,
                   },
                 },
 
                 update: {
-                  name: purchaseVat.name,
+                  name: tax.name ?? null,
 
-                  value: purchaseVat.value,
+                  value:
+                    tax.value !== undefined && tax.value !== null
+                      ? Number(tax.value)
+                      : 0,
                 },
 
                 create: {
                   kiotProductId,
 
-                  taxId: Number(purchaseVat.taxId),
+                  taxId,
 
-                  name: purchaseVat.name,
+                  name: tax.name ?? null,
 
-                  value: purchaseVat.value,
+                  value:
+                    tax.value !== undefined && tax.value !== null
+                      ? Number(tax.value)
+                      : 0,
                 },
               });
             }
@@ -595,10 +679,33 @@ export const saveProductsToDatabase = async (products: any[]) => {
             // DEBUG
             // =================================================
 
+            const saleVat = saleTaxes.find((tax) => Number(tax.taxId) === 3);
+
+            const purchaseVat = purchaseTaxes.find(
+              (tax) => Number(tax.taxId) === 1,
+            );
+
             console.log(`📦 ${product.code}`, {
-              purchaseTax: purchaseTaxes,
-              purchaseVat,
-              saleTax: saleTaxes,
+              // VAT bán
+              saleVat: saleVat
+                ? {
+                    taxId: saleVat.taxId,
+                    name: saleVat.name,
+                    value: saleVat.value,
+                  }
+                : null,
+
+              // VAT mua
+              purchaseVat: purchaseVat
+                ? {
+                    taxId: purchaseVat.taxId,
+                    name: purchaseVat.name,
+                    value: purchaseVat.value,
+                  }
+                : null,
+
+              taxRate: product.taxRate,
+              taxname: product.taxname,
             });
           });
 
@@ -621,7 +728,7 @@ export const saveProductsToDatabase = async (products: any[]) => {
 
   await prisma.synsTimeKiot.upsert({
     where: {
-      keyName: 'LAST_SYNC_KIOT_PRODUCT',
+      keyName: LAST_SYNC_KEY,
     },
 
     update: {
@@ -629,9 +736,11 @@ export const saveProductsToDatabase = async (products: any[]) => {
     },
 
     create: {
-      keyName: 'LAST_SYNC_KIOT_PRODUCT',
+      keyName: LAST_SYNC_KEY,
 
       value: today,
     },
   });
+
+  console.log(`✅ Đã cập nhật thời gian sync: ${today}`);
 };
