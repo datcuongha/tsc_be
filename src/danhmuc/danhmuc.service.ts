@@ -252,6 +252,8 @@ export class DanhmucService {
             const maNcc = item['Mã NCC']?.toString().trim() || null;
 
             const vat = vatMap.get(maHang) || '0';
+            console.log('vat:', vat);
+
             // console.log('COLUMNS:', Object.keys(item));
             // console.log('ITEM:', item);
             // console.log('IMPORT:', {
