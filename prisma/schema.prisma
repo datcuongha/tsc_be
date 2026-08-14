@@ -547,7 +547,7 @@ model phieuDatHangDuyet {
   phieuDatHangTong phieuDatHangTong             @relation(fields: [phieuId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "phieuDatHangDuyet_ibfk_1")
   users            users                        @relation(fields: [userId], references: [userId], onDelete: NoAction, onUpdate: NoAction, map: "phieuDatHangDuyet_ibfk_2")
 
-  @@unique([phieuId, capDuyet], map: "uk_phieu_cap")
+  @@unique([phieuId, capDuyet, userId], map: "uk_phieu_cap_user")
   @@index([capDuyet], map: "idx_capDuyet")
   @@index([phieuId], map: "idx_phieu")
   @@index([trangThai], map: "idx_trangThai")
@@ -590,4 +590,5 @@ enum phieuDatHangDuyet_trangThai {
   CHO_DUYET
   DA_DUYET
   TU_CHOI
+  MAT_LUOC
 }

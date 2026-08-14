@@ -252,15 +252,15 @@ export class DanhmucService {
             const maNcc = item['Mã NCC']?.toString().trim() || null;
 
             const vat = vatMap.get(maHang) || '0';
-            console.log('COLUMNS:', Object.keys(item));
-            console.log('ITEM:', item);
-            console.log('IMPORT:', {
-              maHang,
-              giaMuaRaw: item['Giá mua từ NCC'],
-              giaMua: Number(item['Giá mua từ NCC'] || 0),
-              giaBanRaw: item['Giá bán sau thuế'],
-              giaBan: Number(item['Giá bán sau thuế'] || 0),
-            });
+            // console.log('COLUMNS:', Object.keys(item));
+            // console.log('ITEM:', item);
+            // console.log('IMPORT:', {
+            //   maHang,
+            //   giaMuaRaw: item['Giá mua từ NCC'],
+            //   giaMua: Number(item['Giá mua từ NCC'] || 0),
+            //   giaBanRaw: item['Giá bán sau thuế'],
+            //   giaBan: Number(item['Giá bán sau thuế'] || 0),
+            // });
             await this.prisma.dmhhFast.upsert({
               where: {
                 maHang,
