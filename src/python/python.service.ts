@@ -222,6 +222,7 @@ export class PythonService {
               chuThich: row['chuThich'] || '',
               ngayKhoDat: row['Thời gian'] ? new Date(row['Thời gian']) : null,
               phieuDatHangNhap: row['Mã đặt hàng nhập'] || null,
+              canhBao: row['Cảnh báo'] || '',
             })),
           });
         }

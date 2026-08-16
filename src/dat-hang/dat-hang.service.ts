@@ -597,7 +597,7 @@ export class DatHangService {
     return newData;
   }
 
-   async getPhieuById(id: number, currentUser: number) {
+  async getPhieuById(id: number, currentUser: number) {
     const check = await this.prisma.phieuDatHangTong.findUnique({
       where: {
         id,
