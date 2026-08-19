@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import axios from 'axios';
 import { getAllProducts, saveProductsToDatabase } from 'src/kiotViet/product';
@@ -325,7 +325,7 @@ export class DanhmucService {
 
     const fileBytes = Uint8Array.from(file.buffer);
 
-    // Tìm file hiện tại
+    // Tìm file hiện tại∏
     const fileOld = await this.prisma.fileTemp.findFirst({
       orderBy: {
         id: 'asc',
