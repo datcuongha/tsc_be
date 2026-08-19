@@ -80,6 +80,7 @@ model users {
   createDate        DateTime?           @db.Timestamp(0)
   modifiedDate      DateTime?           @db.Timestamp(0)
   authType          String?             @default("local") @db.VarChar(50)
+  managerId         Int?
   dataSoHoa         dataSoHoa[]
   dmLoaiVb          dmLoaiVb[]
   dmMaPhi           dmMaPhi[]
@@ -89,11 +90,14 @@ model users {
   phieuDatHangDuyet phieuDatHangDuyet[]
   phieuDatHangTong  phieuDatHangTong[]
   powerBi           powerBi[]
+  users             users?              @relation("usersTousers", fields: [managerId], references: [userId], onDelete: NoAction, onUpdate: NoAction, map: "fk_users_manager")
+  other_users       users[]             @relation("usersTousers")
   vaiTro            vaiTro?             @relation(fields: [vaiTroId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_ibfk_1")
   boPhan            boPhan?             @relation(fields: [boPhanId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "users_ibfk_2")
 
   @@index([boPhanId], map: "boPhanId")
   @@index([vaiTroId], map: "vaiTroId")
+  @@index([managerId], map: "fk_users_manager")
 }
 
 model powerBi {
@@ -576,6 +580,14 @@ model dmChiNhanh {
   createDate   DateTime? @db.Timestamp(0)
   modifiedDate DateTime? @db.Timestamp(0)
   status       Boolean?
+}
+
+model fileTemp {
+  id           Int       @id @default(autoincrement())
+  fileName     String?   @db.VarChar(255)
+  file         Bytes
+  createDate   DateTime? @db.Timestamp(0)
+  modifiedDate DateTime? @db.Timestamp(0)
 }
 
 enum phieuDatHangTong_trangThai {

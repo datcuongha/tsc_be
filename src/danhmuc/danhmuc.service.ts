@@ -315,6 +315,64 @@ export class DanhmucService {
     };
   }
 
+  // ----- IMPORT FILE ĐỊNH MỨC
+  async importDinhMuc(file: Express.Multer.File, fullName: string) {
+    const now = new Date();
+
+    // Tìm file hiện tại
+    const fileOld = await this.prisma.fileTemp.findFirst({
+      orderBy: {
+        id: 'asc',
+      },
+    });
+
+    let result;
+
+    if (fileOld) {
+      // Có rồi -> ghi đè file cũ
+      result = await this.prisma.fileTemp.update({
+        where: {
+          id: fileOld.id,
+        },
+        data: {
+          fileName: file.originalname,
+          file: file.buffer,
+          modifiedDate: now,
+        },
+      });
+    } else {
+      // Chưa có -> tạo mới
+      result = await this.prisma.fileTemp.create({
+        data: {
+          fileName: file.originalname,
+          file: file.buffer,
+          createDate: now,
+          modifiedDate: now,
+        },
+      });
+    }
+
+    await this.prisma.history.create({
+      data: {
+        userEdit: fullName,
+        module: 'DANH-MUC',
+        action: 'IMPORT FILE ĐỊNH MỨC',
+        recordId: String(result.id),
+        description: `${fullName} đã import file định mức`,
+        createDate: now,
+      },
+    });
+
+    return {
+      message: 'Đã lưu file định mức',
+      content: {
+        id: result.id,
+        createDate: result.createDate,
+        modifiedDate: result.modifiedDate,
+      },
+    };
+  }
+
   // ----- IMPORT NCC ----- //
   async importDmncc(body: any[]) {
     // Lọc bỏ dòng trống
@@ -390,6 +448,8 @@ export class DanhmucService {
 
   // ----- TÌM MÃ HÀNG ----- //
   async getDmhhByMaHang(maHang: string) {
+    console.log(maHang);
+
     const content = await this.prisma.dmhhFast.findFirst({
       where: {
         maHang: maHang.trim(),
@@ -410,6 +470,7 @@ export class DanhmucService {
         },
       },
     });
+    console.log(content);
 
     return {
       message: 'Thành công',

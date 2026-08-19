@@ -18,6 +18,71 @@ export class DatHangService {
   prisma = new PrismaClient();
 
   // ----- LẤY TẤT CẢ ĐƠN ĐẶT HÀNG ----- //
+  // async getAllDatHang(currentUser: number) {
+  //   // Lấy danh sách phiếu
+  //   const content = await this.prisma.phieuDatHangTong.findMany({
+  //     include: {
+  //       phieuDatHangDetail: true,
+  //       phieuDeXuatDetail: true,
+  //       phieuDatHangDuyet: {
+  //         include: {
+  //           users: {
+  //             select: {
+  //               userId: true,
+  //               fullName: true,
+  //             },
+  //           },
+  //         },
+  //       },
+  //       xntDetail: true,
+  //     },
+  //     orderBy: {
+  //       id: 'desc',
+  //     },
+  //   });
+
+  //   // Lấy toàn bộ user
+  //   const users = await this.prisma.users.findMany({
+  //     select: {
+  //       userId: true,
+  //       fullName: true,
+  //     },
+  //   });
+
+  //   // Chỉ lấy các phiếu user hiện tại đang chờ duyệt
+  //   const approveList = await this.prisma.phieuDatHangDuyet.findMany({
+  //     where: {
+  //       userId: currentUser,
+  //       trangThai: 'CHO_DUYET',
+  //     },
+  //     select: {
+  //       phieuId: true,
+  //       capDuyet: true,
+  //     },
+  //   });
+
+  //   // Map để tra cứu nhanh O(1)
+  //   const approveMap = new Map(approveList.map((item) => [item.phieuId, item]));
+
+  //   const result = content.map((item) => {
+  //     const user = users.find((u) => u.userId === item.nguoiGui);
+
+  //     const approve = approveMap.get(item.id);
+
+  //     return {
+  //       ...item,
+  //       tenNguoiGui: user?.fullName ?? '',
+  //       canApprove: !!approve,
+  //       capDuyet: approve?.capDuyet ?? null,
+  //     };
+  //   });
+
+  //   return {
+  //     message: 'Thành công',
+  //     content: result,
+  //     date: new Date(),
+  //   };
+  // }
   async getAllDatHang(currentUser: number) {
     // Lấy danh sách phiếu
     const content = await this.prisma.phieuDatHangTong.findMany({
@@ -49,19 +114,21 @@ export class DatHangService {
       },
     });
 
-    // Chỉ lấy các phiếu user hiện tại đang chờ duyệt
+    // Lấy các phiếu mà user hiện tại đang có lượt duyệt
     const approveList = await this.prisma.phieuDatHangDuyet.findMany({
       where: {
         userId: currentUser,
         trangThai: 'CHO_DUYET',
       },
       select: {
+        id: true,
         phieuId: true,
         capDuyet: true,
+        trangThai: true,
       },
     });
 
-    // Map để tra cứu nhanh O(1)
+    // Map để tìm theo phieuId
     const approveMap = new Map(approveList.map((item) => [item.phieuId, item]));
 
     const result = content.map((item) => {
@@ -69,11 +136,16 @@ export class DatHangService {
 
       const approve = approveMap.get(item.id);
 
+      const canApprove = item.trangThai === 'CHO_DUYET' && !!approve;
+
       return {
         ...item,
+
         tenNguoiGui: user?.fullName ?? '',
-        canApprove: !!approve,
-        capDuyet: approve?.capDuyet ?? null,
+
+        canApprove,
+
+        capDuyet: canApprove ? approve?.capDuyet ?? null : null,
       };
     });
 
@@ -362,6 +434,8 @@ export class DatHangService {
 
   // ----- CẬP NHẬT THÔNG TIN PHIẾU ĐỀ XUẤT ----- //
   async editDatHangTM(body: any, currentUser: string) {
+    console.log(body);
+
     const checkMaPhieu = await this.prisma.phieuDatHangTong.findFirst({
       where: {
         id: body.phieuId,
@@ -596,7 +670,6 @@ export class DatHangService {
 
     return newData;
   }
-
   async getPhieuById(id: number, currentUser: number) {
     const check = await this.prisma.phieuDatHangTong.findUnique({
       where: {
@@ -605,6 +678,7 @@ export class DatHangService {
       include: {
         phieuDatHangDetail: true,
         phieuDeXuatDetail: true,
+
         phieuDatHangDuyet: {
           include: {
             users: {
@@ -615,6 +689,7 @@ export class DatHangService {
             },
           },
         },
+
         users: {
           select: {
             userId: true,
@@ -635,9 +710,8 @@ export class DatHangService {
     }
 
     // =====================================================
-    // Tìm đúng lượt duyệt của USER hiện tại
+    // TÌM LƯỢT DUYỆT CỦA USER HIỆN TẠI
     // =====================================================
-
     const approve = await this.prisma.phieuDatHangDuyet.findFirst({
       where: {
         phieuId: id,
@@ -648,56 +722,80 @@ export class DatHangService {
       },
     });
 
-    // Không nằm trong luồng duyệt
+    // =====================================================
+    // KHÔNG NẰM TRONG LUỒNG DUYỆT
+    // =====================================================
     if (!approve) {
       throw new ForbiddenException('Bạn không có quyền xem phiếu này');
     }
 
     // =====================================================
-    // User này đã duyệt
+    // ĐANG CHỜ USER HIỆN TẠI DUYỆT
     // =====================================================
-
-    if (approve.trangThai === 'DA_DUYET') {
-      throw new ForbiddenException({
-        status: 'DA_DUYET',
-        message: 'Bạn đã duyệt phiếu này',
-        capDuyet: approve.capDuyet,
-      });
-    }
-
-    // =====================================================
-    // Người cùng cấp đã duyệt trước
-    // =====================================================
-
-    if (approve.trangThai === 'MAT_LUOC') {
-      throw new ForbiddenException({
-        status: 'MAT_LUOC',
-        message: 'Phiếu này đã được người khác duyệt',
-        capDuyet: approve.capDuyet,
-      });
-    }
-
-    // =====================================================
-    // User hiện tại đang CHỜ DUYỆT
-    // =====================================================
-
-    if (approve.trangThai === 'CHO_DUYET') {
+    if (approve.trangThai === 'CHO_DUYET' && check.trangThai === 'CHO_DUYET') {
       return {
+        ...check,
+
         status: 'CHO_DUYET',
         canApprove: true,
-        message: 'Thành công',
-        content: check,
+
+        message: 'Phiếu đang chờ bạn duyệt',
+
         capDuyet: approve.capDuyet,
+
         date: new Date(),
       };
     }
 
+    // =====================================================
+    // USER ĐÃ DUYỆT
+    // =====================================================
+    if (approve.trangThai === 'DA_DUYET') {
+      return {
+        ...check,
+
+        status: 'DA_DUYET',
+        canApprove: false,
+
+        message: 'Phiếu này đã được duyệt rồi',
+
+        capDuyet: approve.capDuyet,
+
+        date: new Date(),
+      };
+    }
+
+    // =====================================================
+    // USER ĐÃ TỪ CHỐI
+    // =====================================================
+    if (approve.trangThai === 'TU_CHOI') {
+      return {
+        ...check,
+
+        status: 'TU_CHOI',
+        canApprove: false,
+
+        message: 'Phiếu này đã được trả lại',
+
+        capDuyet: approve.capDuyet,
+
+        date: new Date(),
+      };
+    }
+
+    // =====================================================
+    // FALLBACK
+    // =====================================================
     return {
+      ...check,
+
       status: approve.trangThai,
       canApprove: false,
-      message: 'Phiếu không ở trạng thái chờ duyệt',
-      content: check,
+
+      message: 'Phiếu không còn ở trạng thái chờ duyệt',
+
       capDuyet: approve.capDuyet,
+
       date: new Date(),
     };
   }
@@ -1150,6 +1248,865 @@ export class DatHangService {
   //     };
   //   }
   // }
+  // async xuLyPheDuyet(
+  //   body: {
+  //     id: number;
+  //     action: 'GUI' | 'DUYET' | 'TU_CHOI';
+  //     lyDoTraLai?: string;
+  //   },
+  //   currentUser: number,
+  //   fullName: string,
+  // ) {
+  //   // =====================================================
+  //   // KIỂM TRA PHIẾU
+  //   // =====================================================
+
+  //   const phieu = await this.prisma.phieuDatHangTong.findUnique({
+  //     where: {
+  //       id: body.id,
+  //     },
+  //   });
+
+  //   if (!phieu) {
+  //     throw new HttpException(
+  //       {
+  //         status: HttpStatus.BAD_REQUEST,
+  //         message: 'Phiếu không tồn tại',
+  //       },
+  //       HttpStatus.BAD_REQUEST,
+  //     );
+  //   }
+
+  //   // =====================================================
+  //   // GỬI DUYỆT
+  //   // =====================================================
+
+  //   if (body.action === 'GUI') {
+  //     // ---------------------------------------------------
+  //     // Lấy thông tin người gửi
+  //     // ---------------------------------------------------
+
+  //     const userGui = await this.prisma.users.findUnique({
+  //       where: {
+  //         userId: currentUser,
+  //       },
+  //       select: {
+  //         userId: true,
+  //         boPhanId: true,
+  //         fullName: true,
+  //       },
+  //     });
+
+  //     if (!userGui) {
+  //       throw new BadRequestException('Không tìm thấy người gửi');
+  //     }
+
+  //     // ---------------------------------------------------
+  //     // Lấy TẤT CẢ người duyệt cấp 1
+  //     // ---------------------------------------------------
+
+  //     const nguoiDuyet = await this.prisma.users.findMany({
+  //       where: {
+  //         boPhanId: userGui.boPhanId,
+  //         vaiTroId: 7,
+  //         status: true,
+  //       },
+  //       select: {
+  //         userId: true,
+  //         fullName: true,
+  //         email: true,
+  //       },
+  //     });
+
+  //     if (nguoiDuyet.length === 0) {
+  //       throw new BadRequestException('Không tìm thấy người duyệt cấp 1');
+  //     }
+
+  //     // ===================================================
+  //     // TRANSACTION
+  //     // ===================================================
+
+  //     const data = await this.prisma.$transaction(async (tx) => {
+  //       // -------------------------------------------------
+  //       // Cập nhật phiếu
+  //       // -------------------------------------------------
+
+  //       const phieuUpdate = await tx.phieuDatHangTong.update({
+  //         where: {
+  //           id: body.id,
+  //         },
+  //         data: {
+  //           trangThai: 'CHO_DUYET',
+  //           nguoiGui: currentUser,
+  //           ngayGui: new Date(),
+  //         },
+  //       });
+
+  //       // -------------------------------------------------
+  //       // Tạo lượt duyệt cho TẤT CẢ người cấp 1
+  //       // -------------------------------------------------
+
+  //       await tx.phieuDatHangDuyet.createMany({
+  //         data: nguoiDuyet.map((user) => ({
+  //           phieuId: body.id,
+  //           userId: user.userId,
+  //           capDuyet: 1,
+  //           trangThai: 'CHO_DUYET',
+  //         })),
+  //       });
+
+  //       return phieuUpdate;
+  //     });
+
+  //     // ===================================================
+  //     // GỬI MAIL CHO TẤT CẢ NGƯỜI CẤP 1
+  //     // ===================================================
+
+  //     for (const user of nguoiDuyet) {
+  //       await this.mailerService.sendMail({
+  //         to: user.email,
+  //         subject: `Phiếu ${data.maPhieu} cần duyệt`,
+  //         html: `
+  //         <p>Xin chào ${user.fullName},</p>
+
+  //         <p>Có một phiếu đặt hàng cần bạn duyệt.</p>
+
+  //         <table border="1" cellpadding="6">
+  //           <tr>
+  //             <td>Mã phiếu</td>
+  //             <td>${data.maPhieu}</td>
+  //           </tr>
+
+  //           <tr>
+  //             <td>Nhà cung cấp</td>
+  //             <td>${data.tenNcc}</td>
+  //           </tr>
+
+  //           <tr>
+  //             <td>Trạng thái</td>
+  //             <td>CHỜ DUYỆT</td>
+  //           </tr>
+  //         </table>
+
+  //         <br/>
+
+  //         <a href="https://services.benthanhtsc.com/phe-duyet/${data.id}">
+  //           Xem phiếu
+  //         </a>
+  //       `,
+  //       });
+
+  //       // -------------------------------------------------
+  //       // Socket
+  //       // -------------------------------------------------
+
+  //       this.socketGateway.notifyUser(user.userId, {
+  //         type: 'NEW_APPROVAL',
+  //         phieuId: data.id,
+  //         maPhieu: data.maPhieu,
+  //       });
+  //     }
+
+  //     // ===================================================
+  //     // HISTORY
+  //     // ===================================================
+
+  //     await this.prisma.history.create({
+  //       data: {
+  //         userEdit: fullName,
+  //         module: 'DON-DE-XUAT',
+  //         action: 'GỬI DUYỆT',
+  //         recordId: data.maPhieu,
+  //         description: `${fullName} chuyển duyệt phiếu số ${data.maPhieu}`,
+  //         createDate: new Date(),
+  //       },
+  //     });
+
+  //     return {
+  //       status: 'SUCCESS',
+  //       message: 'Đã gửi duyệt',
+  //     };
+  //   }
+
+  //   // =====================================================
+  //   // DUYỆT
+  //   // =====================================================
+
+  //   if (body.action === 'DUYET') {
+  //     // ---------------------------------------------------
+  //     // Tìm lượt duyệt của user hiện tại
+  //     // ---------------------------------------------------
+
+  //     const currentApprove = await this.prisma.phieuDatHangDuyet.findFirst({
+  //       where: {
+  //         phieuId: body.id,
+  //         userId: currentUser,
+  //       },
+  //       orderBy: {
+  //         capDuyet: 'desc',
+  //       },
+  //     });
+
+  //     // ---------------------------------------------------
+  //     // Không có quyền
+  //     // ---------------------------------------------------
+
+  //     if (!currentApprove) {
+  //       throw new ForbiddenException('Bạn không có quyền duyệt phiếu này');
+  //     }
+
+  //     // ---------------------------------------------------
+  //     // User này đã duyệt
+  //     // ---------------------------------------------------
+
+  //     if (currentApprove.trangThai === 'DA_DUYET') {
+  //       return {
+  //         status: 'DA_DUYET',
+  //         canApprove: false,
+  //         message: 'Bạn đã duyệt phiếu này',
+  //       };
+  //     }
+
+  //     // ---------------------------------------------------
+  //     // User này bị mất quyền do người cùng cấp duyệt trước
+  //     // ---------------------------------------------------
+
+  //     if (currentApprove.trangThai === 'MAT_LUOC') {
+  //       return {
+  //         status: 'DA_DUYET',
+  //         canApprove: false,
+  //         message: 'Phiếu này đã được người khác duyệt',
+  //       };
+  //     }
+
+  //     // ---------------------------------------------------
+  //     // Không phải CHO_DUYET
+  //     // ---------------------------------------------------
+
+  //     if (currentApprove.trangThai !== 'CHO_DUYET') {
+  //       throw new ForbiddenException('Bạn không có quyền duyệt phiếu này');
+  //     }
+
+  //     // ===================================================
+  //     // FLOW
+  //     // ===================================================
+
+  //     const FLOW: Record<
+  //       number,
+  //       {
+  //         nextRole: number;
+  //         nextCap: number;
+  //       }
+  //     > = {
+  //       1: {
+  //         nextRole: 8,
+  //         nextCap: 2,
+  //       },
+  //     };
+
+  //     const next = FLOW[currentApprove.capDuyet];
+
+  //     let nextUsers: {
+  //       userId: number;
+  //       fullName: string;
+  //       email: string;
+  //     }[] = [];
+
+  //     // ===================================================
+  //     // LẤY TẤT CẢ NGƯỜI DUYỆT CẤP TIẾP THEO
+  //     // ===================================================
+
+  //     if (next) {
+  //       nextUsers = await this.prisma.users.findMany({
+  //         where: {
+  //           vaiTroId: next.nextRole,
+  //           status: true,
+  //         },
+  //         select: {
+  //           userId: true,
+  //           fullName: true,
+  //           email: true,
+  //         },
+  //       });
+
+  //       if (nextUsers.length === 0) {
+  //         throw new BadRequestException(
+  //           'Không tìm thấy người duyệt cấp tiếp theo',
+  //         );
+  //       }
+  //     }
+
+  //     // ===================================================
+  //     // TRANSACTION
+  //     // ===================================================
+
+  //     let daDuyet = false;
+
+  //     await this.prisma.$transaction(async (tx) => {
+  //       // =================================================
+  //       // QUAN TRỌNG
+  //       //
+  //       // Chỉ người nào update được record CHO_DUYET
+  //       // mới được xem là người bấm trước.
+  //       // =================================================
+
+  //       const result = await tx.phieuDatHangDuyet.updateMany({
+  //         where: {
+  //           id: currentApprove.id,
+  //           phieuId: body.id,
+  //           userId: currentUser,
+  //           capDuyet: currentApprove.capDuyet,
+  //           trangThai: 'CHO_DUYET',
+  //         },
+  //         data: {
+  //           trangThai: 'DA_DUYET',
+  //           ngayDuyet: new Date(),
+  //         },
+  //       });
+
+  //       // =================================================
+  //       // Người khác đã duyệt trước
+  //       // =================================================
+
+  //       if (result.count === 0) {
+  //         throw new ForbiddenException(
+  //           'Phiếu này đã được người khác duyệt trước',
+  //         );
+  //       }
+
+  //       daDuyet = true;
+
+  //       // =================================================
+  //       // Những người CÙNG CẤP còn lại
+  //       // => mất quyền duyệt
+  //       // =================================================
+
+  //       await tx.phieuDatHangDuyet.updateMany({
+  //         where: {
+  //           phieuId: body.id,
+  //           capDuyet: currentApprove.capDuyet,
+  //           trangThai: 'CHO_DUYET',
+  //           userId: {
+  //             not: currentUser,
+  //           },
+  //         },
+  //         data: {
+  //           trangThai: 'MAT_LUOC',
+  //           ngayDuyet: new Date(),
+  //         },
+  //       });
+
+  //       // =================================================
+  //       // CẤP TIẾP THEO
+  //       // =================================================
+
+  //       if (next && nextUsers.length > 0) {
+  //         // ------------------------------------------------
+  //         // Kiểm tra cấp tiếp theo đã tồn tại chưa
+  //         // ------------------------------------------------
+
+  //         const existingNext = await tx.phieuDatHangDuyet.findFirst({
+  //           where: {
+  //             phieuId: body.id,
+  //             capDuyet: next.nextCap,
+  //           },
+  //         });
+
+  //         // ------------------------------------------------
+  //         // Chỉ tạo nếu chưa tồn tại
+  //         // ------------------------------------------------
+
+  //         if (!existingNext) {
+  //           await tx.phieuDatHangDuyet.createMany({
+  //             data: nextUsers.map((user) => ({
+  //               phieuId: body.id,
+  //               userId: user.userId,
+  //               capDuyet: next.nextCap,
+  //               trangThai: 'CHO_DUYET',
+  //             })),
+  //           });
+  //         }
+
+  //         return;
+  //       }
+
+  //       // =================================================
+  //       // Không còn cấp tiếp theo
+  //       // => HOÀN TẤT
+  //       // =================================================
+
+  //       await tx.phieuDatHangTong.update({
+  //         where: {
+  //           id: body.id,
+  //         },
+  //         data: {
+  //           trangThai: 'DA_DUYET',
+  //         },
+  //       });
+  //     });
+
+  //     // ===================================================
+  //     // Không thành công
+  //     // ===================================================
+
+  //     if (!daDuyet) {
+  //       throw new ForbiddenException(
+  //         'Phiếu này đã được người khác duyệt trước',
+  //       );
+  //     }
+
+  //     // ===================================================
+  //     // GỬI MAIL CẤP TIẾP THEO
+  //     // ===================================================
+
+  //     if (nextUsers.length > 0) {
+  //       for (const nextUser of nextUsers) {
+  //         await this.mailerService.sendMail({
+  //           to: nextUser.email,
+  //           subject: `Phiếu ${phieu.maPhieu} cần duyệt`,
+  //           html: `
+  //           <p>Xin chào ${nextUser.fullName},</p>
+
+  //           <p>Có một phiếu đặt hàng cần bạn duyệt.</p>
+
+  //           <table border="1" cellpadding="6">
+  //             <tr>
+  //               <td>Mã phiếu</td>
+  //               <td>${phieu.maPhieu}</td>
+  //             </tr>
+
+  //             <tr>
+  //               <td>Nhà cung cấp</td>
+  //               <td>${phieu.tenNcc}</td>
+  //             </tr>
+
+  //             <tr>
+  //               <td>Trạng thái</td>
+  //               <td>CHỜ DUYỆT</td>
+  //             </tr>
+  //           </table>
+
+  //           <br/>
+
+  //           <a href="https://services.benthanhtsc.com/phe-duyet/${phieu.id}">
+  //             Xem phiếu
+  //           </a>
+  //         `,
+  //         });
+
+  //         this.socketGateway.notifyUser(nextUser.userId, {
+  //           type: 'NEW_APPROVAL',
+  //           phieuId: phieu.id,
+  //           maPhieu: phieu.maPhieu,
+  //         });
+  //       }
+  //     } else {
+  //       // -------------------------------------------------
+  //       // Duyệt hoàn tất
+  //       // -------------------------------------------------
+
+  //       this.socketGateway.notifyUser(currentUser, {
+  //         type: 'APPROVED',
+  //         phieuId: phieu.id,
+  //         maPhieu: phieu.maPhieu,
+  //       });
+  //     }
+
+  //     // ===================================================
+  //     // HISTORY
+  //     // ===================================================
+
+  //     await this.prisma.history.create({
+  //       data: {
+  //         userEdit: fullName,
+  //         module: 'DON-DE-XUAT',
+  //         action: 'DUYỆT',
+  //         recordId: phieu.maPhieu,
+  //         description:
+  //           nextUsers.length > 0
+  //             ? `${fullName} đã duyệt phiếu ${phieu.maPhieu} và chuyển sang cấp ${next.nextCap}`
+  //             : `${fullName} đã duyệt hoàn tất phiếu ${phieu.maPhieu}`,
+  //         createDate: new Date(),
+  //       },
+  //     });
+
+  //     return {
+  //       status: 'SUCCESS',
+  //       message:
+  //         nextUsers.length > 0
+  //           ? 'Đã duyệt và chuyển sang cấp tiếp theo'
+  //           : 'Đã duyệt hoàn tất',
+  //     };
+  //   }
+
+  //   // =====================================================
+  //   // TỪ CHỐI
+  //   // =====================================================
+
+  //   if (body.action === 'TU_CHOI') {
+  //     // ---------------------------------------------------
+  //     // Tìm lượt duyệt của user
+  //     // ---------------------------------------------------
+
+  //     const currentApprove = await this.prisma.phieuDatHangDuyet.findFirst({
+  //       where: {
+  //         phieuId: body.id,
+  //         userId: currentUser,
+  //       },
+  //       orderBy: {
+  //         capDuyet: 'desc',
+  //       },
+  //     });
+
+  //     // ---------------------------------------------------
+  //     // Không có quyền
+  //     // ---------------------------------------------------
+
+  //     if (!currentApprove) {
+  //       throw new ForbiddenException('Bạn không có quyền duyệt phiếu này');
+  //     }
+
+  //     // ---------------------------------------------------
+  //     // Đã duyệt
+  //     // ---------------------------------------------------
+
+  //     if (currentApprove.trangThai === 'DA_DUYET') {
+  //       return {
+  //         status: 'DA_DUYET',
+  //         canApprove: false,
+  //         message: `Phiếu này đã được duyệt`,
+  //       };
+  //     }
+
+  //     // ---------------------------------------------------
+  //     // Đã từ chối / người khác đã duyệt
+  //     // ---------------------------------------------------
+
+  //     if (currentApprove.trangThai === 'TU_CHOI') {
+  //       return {
+  //         status: 'TU_CHOI',
+  //         canApprove: false,
+  //         message: 'Phiếu này đã được xử lý',
+  //       };
+  //     }
+
+  //     // ---------------------------------------------------
+  //     // Không còn chờ duyệt
+  //     // ---------------------------------------------------
+
+  //     if (currentApprove.trangThai !== 'CHO_DUYET') {
+  //       throw new ForbiddenException('Bạn không có quyền duyệt phiếu này');
+  //     }
+
+  //     // ===================================================
+  //     // TRANSACTION TỪ CHỐI
+  //     // ===================================================
+
+  //     let newPhieu: any;
+
+  //     await this.prisma.$transaction(async (tx) => {
+  //       // =================================================
+  //       // Quan trọng:
+  //       // chỉ user còn CHO_DUYET mới được từ chối
+  //       // =================================================
+
+  //       const result = await tx.phieuDatHangDuyet.updateMany({
+  //         where: {
+  //           id: currentApprove.id,
+  //           phieuId: body.id,
+  //           userId: currentUser,
+  //           trangThai: 'CHO_DUYET',
+  //         },
+  //         data: {
+  //           trangThai: 'TU_CHOI',
+  //           ngayDuyet: new Date(),
+  //         },
+  //       });
+
+  //       if (result.count === 0) {
+  //         throw new ForbiddenException(
+  //           'Phiếu này đã được người khác xử lý trước',
+  //         );
+  //       }
+
+  //       // =================================================
+  //       // Cập nhật phiếu
+  //       // =================================================
+
+  //       await tx.phieuDatHangTong.update({
+  //         where: {
+  //           id: body.id,
+  //         },
+  //         data: {
+  //           trangThai: 'TRA_LAI',
+  //           lyDoTraLai: body.lyDoTraLai,
+  //         },
+  //       });
+
+  //       // =================================================
+  //       // Các user cùng cấp còn lại
+  //       // => mất quyền xử lý
+  //       // =================================================
+
+  //       await tx.phieuDatHangDuyet.updateMany({
+  //         where: {
+  //           phieuId: body.id,
+  //           capDuyet: currentApprove.capDuyet,
+  //           trangThai: 'CHO_DUYET',
+  //           userId: {
+  //             not: currentUser,
+  //           },
+  //         },
+  //         data: {
+  //           trangThai: 'MAT_LUOC',
+  //           ngayDuyet: new Date(),
+  //         },
+  //       });
+
+  //       // =================================================
+  //       // Tìm mã gốc
+  //       // =================================================
+
+  //       let maGoc = phieu.maPhieu;
+
+  //       if (maGoc.includes('.')) {
+  //         maGoc = maGoc.split('.')[0];
+  //       }
+
+  //       // =================================================
+  //       // Tìm phiên bản cuối
+  //       // =================================================
+
+  //       const phieuCuoi = await tx.phieuDatHangTong.findFirst({
+  //         where: {
+  //           maPhieu: {
+  //             startsWith: maGoc,
+  //           },
+  //         },
+  //         orderBy: {
+  //           id: 'desc',
+  //         },
+  //       });
+
+  //       let lan = 1;
+
+  //       if (phieuCuoi?.maPhieu.includes('.')) {
+  //         const parts = phieuCuoi.maPhieu.split('.');
+  //         const soLan = Number(parts[1]);
+
+  //         if (!Number.isNaN(soLan)) {
+  //           lan = soLan + 1;
+  //         }
+  //       }
+
+  //       const maPhieuMoi = `${maGoc}.${String(lan).padStart(2, '0')}`;
+
+  //       // =================================================
+  //       // Tạo phiếu mới
+  //       // =================================================
+
+  //       newPhieu = await tx.phieuDatHangTong.create({
+  //         data: {
+  //           maPhieu: maPhieuMoi,
+  //           tenNcc: phieu.tenNcc,
+  //           congTy: phieu.congTy,
+  //           diaChi: phieu.diaChi,
+  //           mst: phieu.mst,
+  //           ghiChuHopDong: phieu.ghiChuHopDong,
+  //           fromDate: phieu.fromDate,
+  //           toDate: phieu.toDate,
+  //           nguoiGui: phieu.nguoiGui,
+  //           phieuGocId: phieu.id,
+  //           trangThai: 'NHAP',
+  //           createDate: phieu.createDate,
+  //           modifiedDate: new Date(),
+  //         },
+  //       });
+
+  //       // =================================================
+  //       // Copy phieuDatHangDetail
+  //       // =================================================
+
+  //       // const phieuDatHangDetail = await tx.phieuDatHangDetail.findMany({
+  //       //   where: {
+  //       //     phieuId: body.id,
+  //       //   },
+  //       // });
+
+  //       // if (phieuDatHangDetail.length > 0) {
+  //       //   await tx.phieuDatHangDetail.createMany({
+  //       //     data: phieuDatHangDetail.map((item) => ({
+  //       //       phieuId: newPhieu.id,
+  //       //       maHang: item.maHang,
+  //       //       tenSp: item.tenSp,
+  //       //       dvt: item.dvt,
+  //       //       donGia: item.donGia,
+  //       //       giamGia: item.giamGia,
+  //       //       thueSuat: item.thueSuat,
+  //       //       soLuong: item.soLuong,
+  //       //       soLuongPGDDuyet: null,
+  //       //       soLuongGDDuyet: null,
+  //       //       giaBan: item.giaBan,
+  //       //       ghiChuHangHoa: item.ghiChuHangHoa,
+  //       //       canhBao: item.canhBao,
+  //       //       slCoTheDat: item.slCoTheDat,
+  //       //       tonCuoi: item.tonCuoi,
+  //       //       slKhoDat: item.slKhoDat,
+  //       //       slTonToiUu: item.slTonToiUu,
+  //       //       slBanCuoi: item.slBanCuoi,
+  //       //       slNhapNccCuoi: item.slNhapNccCuoi,
+  //       //       ngayKhoDat: item.ngayKhoDat,
+  //       //     })),
+  //       //   });
+  //       // }
+
+  //       // // =================================================
+  //       // // Copy phieuDeXuatDetail
+  //       // // =================================================
+
+  //       // const phieuDeXuatDetail = await tx.phieuDeXuatDetail.findMany({
+  //       //   where: {
+  //       //     phieuId: body.id,
+  //       //   },
+  //       // });
+
+  //       // if (phieuDeXuatDetail.length > 0) {
+  //       //   await tx.phieuDeXuatDetail.createMany({
+  //       //     data: phieuDeXuatDetail.map((item) => ({
+  //       //       phieuId: newPhieu.id,
+  //       //       chiNhanh: item.chiNhanh,
+  //       //       maHang: item.maHang,
+  //       //       tenNhaCungCap: item.tenNhaCungCap,
+  //       //       tenHang: item.tenHang,
+  //       //       nhapChuyen: item.nhapChuyen,
+  //       //       nhapNcc: item.nhapNcc,
+  //       //       xuatBan: item.xuatBan,
+  //       //       tonCuoi: item.tonCuoi,
+  //       //       slKhoDat: item.slKhoDat,
+  //       //       giaVon: item.giaVon,
+  //       //       giaBan: item.giaBan,
+  //       //       canhBao: item.canhBao,
+  //       //       ghiChuKho: item.ghiChuKho,
+  //       //       thuMuaNhap: item.thuMuaNhap,
+  //       //       ngayKhoDat: item.ngayKhoDat,
+  //       //       chuThich: item.chuThich,
+  //       //       phieuDatHangNhap: item.phieuDatHangNhap,
+  //       //     })),
+  //       //   });
+  //       // }
+
+  //       // const xntDetail = await tx.xntDetail.findMany({
+  //       //   where: {
+  //       //     phieuId: body.id,
+  //       //   },
+  //       // });
+
+  //       // if (xntDetail.length > 0) {
+  //       //   await tx.xntDetail.createMany({
+  //       //     data: xntDetail.map((item) => ({
+  //       //       phieuId: newPhieu.id,
+  //       //       chiNhanh: item.chiNhanh,
+  //       //       maHang: item.maHang,
+  //       //       tenNhaCungCap: item.tenNhaCungCap,
+
+  //       //       nhapChuyen: item.nhapChuyen,
+  //       //       slTonToiUu: item.slTonToiUu,
+  //       //       xuatBan: item.xuatBan,
+  //       //       tonCuoi: item.tonCuoi,
+
+  //       //       canhBao: item.canhBao,
+  //       //     })),
+  //       //   });
+  //       // }
+  //       // =================================================
+  //       // Chuyển phieuDatHangDetail sang phiếu mới
+  //       // =================================================
+
+  //       await tx.phieuDatHangDetail.updateMany({
+  //         where: {
+  //           phieuId: body.id,
+  //         },
+  //         data: {
+  //           phieuId: newPhieu.id,
+
+  //           // reset số lượng duyệt nếu cần
+  //           soLuongPGDDuyet: null,
+  //           soLuongGDDuyet: null,
+  //         },
+  //       });
+
+  //       // =================================================
+  //       // Chuyển phieuDeXuatDetail sang phiếu mới
+  //       // =================================================
+
+  //       await tx.phieuDeXuatDetail.updateMany({
+  //         where: {
+  //           phieuId: body.id,
+  //         },
+  //         data: {
+  //           phieuId: newPhieu.id,
+  //         },
+  //       });
+
+  //       // =================================================
+  //       // Chuyển xntDetail sang phiếu mới
+  //       // =================================================
+
+  //       await tx.xntDetail.updateMany({
+  //         where: {
+  //           phieuId: body.id,
+  //         },
+  //         data: {
+  //           phieuId: newPhieu.id,
+  //         },
+  //       });
+  //       // =================================================
+  //       // Thông báo người gửi
+  //       // =================================================
+
+  //       if (phieu.nguoiGui) {
+  //         this.socketGateway.notifyUser(phieu.nguoiGui, {
+  //           type: 'REJECT',
+  //           phieuId: phieu.id,
+  //           maPhieu: phieu.maPhieu,
+  //           newPhieuId: newPhieu.id,
+  //           newMaPhieu: newPhieu.maPhieu,
+  //           lyDoTraLai: body.lyDoTraLai,
+  //         });
+  //       }
+  //     });
+
+  //     // ===================================================
+  //     // HISTORY
+  //     // ===================================================
+
+  //     await this.prisma.history.create({
+  //       data: {
+  //         userEdit: fullName,
+  //         module: 'DON-DE-XUAT',
+  //         action: 'TỪ CHỐI',
+  //         recordId: phieu.maPhieu,
+  //         description:
+  //           `${fullName} từ chối phiếu ${phieu.maPhieu}. ` +
+  //           `Lý do: ${body.lyDoTraLai}`,
+  //         createDate: new Date(),
+  //       },
+  //     });
+
+  //     return {
+  //       status: 'TU_CHOI',
+  //       message: 'Đã trả lại phiếu',
+  //       newPhieuId: newPhieu?.id,
+  //       newMaPhieu: newPhieu?.maPhieu,
+  //     };
+  //   }
+
+  //   // =====================================================
+  //   // ACTION KHÔNG HỢP LỆ
+  //   // =====================================================
+
+  //   throw new BadRequestException('Thao tác phê duyệt không hợp lệ');
+  // }
   async xuLyPheDuyet(
     body: {
       id: number;
@@ -1162,7 +2119,6 @@ export class DatHangService {
     // =====================================================
     // KIỂM TRA PHIẾU
     // =====================================================
-
     const phieu = await this.prisma.phieuDatHangTong.findUnique({
       where: {
         id: body.id,
@@ -1170,24 +2126,21 @@ export class DatHangService {
     });
 
     if (!phieu) {
-      throw new HttpException(
-        {
-          status: HttpStatus.BAD_REQUEST,
-          message: 'Phiếu không tồn tại',
-        },
-        HttpStatus.BAD_REQUEST,
-      );
+      throw new BadRequestException('Phiếu không tồn tại');
     }
 
     // =====================================================
-    // GỬI DUYỆT
+    // 1. GỬI DUYỆT
     // =====================================================
-
     if (body.action === 'GUI') {
-      // ---------------------------------------------------
-      // Lấy thông tin người gửi
-      // ---------------------------------------------------
+      // Chỉ phiếu NHAP hoặc TRA_LAI mới được gửi
+      if (!['NHAP', 'TRA_LAI'].includes(phieu.trangThai)) {
+        throw new BadRequestException('Phiếu này không thể gửi duyệt');
+      }
 
+      // ===================================================
+      // Kiểm tra người gửi
+      // ===================================================
       const userGui = await this.prisma.users.findUnique({
         where: {
           userId: currentUser,
@@ -1203,13 +2156,16 @@ export class DatHangService {
         throw new BadRequestException('Không tìm thấy người gửi');
       }
 
-      // ---------------------------------------------------
-      // Lấy TẤT CẢ người duyệt cấp 1
-      // ---------------------------------------------------
-
-      const nguoiDuyet = await this.prisma.users.findMany({
+      // ===================================================
+      // TÌM NGƯỜI DUYỆT CẤP 1
+      //
+      // Hiện tại ví dụ:
+      // vaiTroId = 7
+      //
+      // Sau này nếu dùng managerId thì thay logic này.
+      // ===================================================
+      const nguoiDuyet = await this.prisma.users.findFirst({
         where: {
-          boPhanId: userGui.boPhanId,
           vaiTroId: 7,
           status: true,
         },
@@ -1220,20 +2176,27 @@ export class DatHangService {
         },
       });
 
-      if (nguoiDuyet.length === 0) {
+      if (!nguoiDuyet) {
         throw new BadRequestException('Không tìm thấy người duyệt cấp 1');
       }
 
       // ===================================================
-      // TRANSACTION
+      // CẬP NHẬT PHIẾU + TẠO LƯỢT DUYỆT
       // ===================================================
-
       const data = await this.prisma.$transaction(async (tx) => {
-        // -------------------------------------------------
-        // Cập nhật phiếu
-        // -------------------------------------------------
+        // tránh gửi duyệt 2 lần
+        const existingApprove = await tx.phieuDatHangDuyet.findFirst({
+          where: {
+            phieuId: body.id,
+            trangThai: 'CHO_DUYET',
+          },
+        });
 
-        const phieuUpdate = await tx.phieuDatHangTong.update({
+        if (existingApprove) {
+          throw new BadRequestException('Phiếu đang trong quá trình duyệt');
+        }
+
+        const updatedPhieu = await tx.phieuDatHangTong.update({
           where: {
             id: body.id,
           },
@@ -1241,158 +2204,127 @@ export class DatHangService {
             trangThai: 'CHO_DUYET',
             nguoiGui: currentUser,
             ngayGui: new Date(),
+            lyDoTraLai: null,
           },
         });
 
-        // -------------------------------------------------
-        // Tạo lượt duyệt cho TẤT CẢ người cấp 1
-        // -------------------------------------------------
-
-        await tx.phieuDatHangDuyet.createMany({
-          data: nguoiDuyet.map((user) => ({
+        await tx.phieuDatHangDuyet.create({
+          data: {
             phieuId: body.id,
-            userId: user.userId,
+            userId: nguoiDuyet.userId,
             capDuyet: 1,
             trangThai: 'CHO_DUYET',
-          })),
+          },
         });
 
-        return phieuUpdate;
+        return updatedPhieu;
       });
 
       // ===================================================
-      // GỬI MAIL CHO TẤT CẢ NGƯỜI CẤP 1
+      // EMAIL
       // ===================================================
-
-      for (const user of nguoiDuyet) {
+      if (nguoiDuyet.email) {
         await this.mailerService.sendMail({
-          to: user.email,
+          to: nguoiDuyet.email,
           subject: `Phiếu ${data.maPhieu} cần duyệt`,
           html: `
-          <p>Xin chào ${user.fullName},</p>
+          <p>Xin chào ${nguoiDuyet.fullName},</p>
 
           <p>Có một phiếu đặt hàng cần bạn duyệt.</p>
 
-          <table border="1" cellpadding="6">
+          <table
+            border="1"
+            cellpadding="6"
+            cellspacing="0"
+          >
             <tr>
-              <td>Mã phiếu</td>
+              <td><b>Mã phiếu</b></td>
               <td>${data.maPhieu}</td>
             </tr>
 
             <tr>
-              <td>Nhà cung cấp</td>
+              <td><b>Nhà cung cấp</b></td>
               <td>${data.tenNcc}</td>
             </tr>
 
             <tr>
-              <td>Trạng thái</td>
-              <td>CHỜ DUYỆT</td>
+              <td><b>Người gửi</b></td>
+              <td>${fullName}</td>
             </tr>
           </table>
 
-          <br/>
+          <br />
 
-          <a href="https://services.benthanhtsc.com/phe-duyet/${data.id}">
+          <a
+            href="https://services.benthanhtsc.com/phe-duyet/${data.id}"
+          >
             Xem phiếu
           </a>
         `,
         });
-
-        // -------------------------------------------------
-        // Socket
-        // -------------------------------------------------
-
-        this.socketGateway.notifyUser(user.userId, {
-          type: 'NEW_APPROVAL',
-          phieuId: data.id,
-          maPhieu: data.maPhieu,
-        });
       }
+
+      // ===================================================
+      // SOCKET
+      // ===================================================
+      this.socketGateway.notifyUser(nguoiDuyet.userId, {
+        type: 'NEW_APPROVAL',
+        phieuId: data.id,
+        maPhieu: data.maPhieu,
+      });
 
       // ===================================================
       // HISTORY
       // ===================================================
-
       await this.prisma.history.create({
         data: {
           userEdit: fullName,
           module: 'DON-DE-XUAT',
           action: 'GỬI DUYỆT',
           recordId: data.maPhieu,
-          description: `${fullName} chuyển duyệt phiếu số ${data.maPhieu}`,
+          description:
+            `${fullName} chuyển duyệt phiếu ${data.maPhieu} ` +
+            `cho ${nguoiDuyet.fullName}`,
           createDate: new Date(),
         },
       });
 
       return {
-        status: 'SUCCESS',
         message: 'Đã gửi duyệt',
       };
     }
 
     // =====================================================
-    // DUYỆT
+    // 2. DUYỆT
     // =====================================================
-
     if (body.action === 'DUYET') {
-      // ---------------------------------------------------
-      // Tìm lượt duyệt của user hiện tại
-      // ---------------------------------------------------
-
+      // ===================================================
+      // Kiểm tra đúng lượt của user hiện tại
+      // ===================================================
       const currentApprove = await this.prisma.phieuDatHangDuyet.findFirst({
         where: {
           phieuId: body.id,
           userId: currentUser,
-        },
-        orderBy: {
-          capDuyet: 'desc',
+          trangThai: 'CHO_DUYET',
         },
       });
 
-      // ---------------------------------------------------
-      // Không có quyền
-      // ---------------------------------------------------
-
       if (!currentApprove) {
-        throw new ForbiddenException('Bạn không có quyền duyệt phiếu này');
-      }
-
-      // ---------------------------------------------------
-      // User này đã duyệt
-      // ---------------------------------------------------
-
-      if (currentApprove.trangThai === 'DA_DUYET') {
-        return {
-          status: 'DA_DUYET',
-          canApprove: false,
-          message: 'Bạn đã duyệt phiếu này',
-        };
-      }
-
-      // ---------------------------------------------------
-      // User này bị mất quyền do người cùng cấp duyệt trước
-      // ---------------------------------------------------
-
-      if (currentApprove.trangThai === 'MAT_LUOC') {
-        return {
-          status: 'DA_DUYET',
-          canApprove: false,
-          message: 'Phiếu này đã được người khác duyệt',
-        };
-      }
-
-      // ---------------------------------------------------
-      // Không phải CHO_DUYET
-      // ---------------------------------------------------
-
-      if (currentApprove.trangThai !== 'CHO_DUYET') {
-        throw new ForbiddenException('Bạn không có quyền duyệt phiếu này');
+        throw new ForbiddenException(
+          'Bạn không có quyền duyệt phiếu này hoặc phiếu đã được xử lý',
+        );
       }
 
       // ===================================================
-      // FLOW
+      // FLOW DUYỆT
+      //
+      // cap 1 -> role 8 -> cap 2
+      // cap 2 -> hoàn tất
+      //
+      // Ví dụ:
+      // cấp 1 = PGĐ
+      // cấp 2 = GĐ
       // ===================================================
-
       const FLOW: Record<
         number,
         {
@@ -1408,18 +2340,17 @@ export class DatHangService {
 
       const next = FLOW[currentApprove.capDuyet];
 
-      let nextUsers: {
+      let nextUser: {
         userId: number;
-        fullName: string;
-        email: string;
-      }[] = [];
+        fullName: string | null;
+        email: string | null;
+      } | null = null;
 
       // ===================================================
-      // LẤY TẤT CẢ NGƯỜI DUYỆT CẤP TIẾP THEO
+      // Tìm người duyệt tiếp theo nếu còn cấp
       // ===================================================
-
       if (next) {
-        nextUsers = await this.prisma.users.findMany({
+        nextUser = await this.prisma.users.findFirst({
           where: {
             vaiTroId: next.nextRole,
             status: true,
@@ -1431,33 +2362,21 @@ export class DatHangService {
           },
         });
 
-        if (nextUsers.length === 0) {
-          throw new BadRequestException(
-            'Không tìm thấy người duyệt cấp tiếp theo',
-          );
+        if (!nextUser) {
+          throw new BadRequestException('Không tìm thấy người duyệt tiếp theo');
         }
       }
 
       // ===================================================
-      // TRANSACTION
+      // TRANSACTION DUYỆT
       // ===================================================
-
-      let daDuyet = false;
-
       await this.prisma.$transaction(async (tx) => {
-        // =================================================
-        // QUAN TRỌNG
-        //
-        // Chỉ người nào update được record CHO_DUYET
-        // mới được xem là người bấm trước.
-        // =================================================
-
-        const result = await tx.phieuDatHangDuyet.updateMany({
+        // khóa lượt hiện tại
+        const updateResult = await tx.phieuDatHangDuyet.updateMany({
           where: {
             id: currentApprove.id,
             phieuId: body.id,
             userId: currentUser,
-            capDuyet: currentApprove.capDuyet,
             trangThai: 'CHO_DUYET',
           },
           data: {
@@ -1466,147 +2385,97 @@ export class DatHangService {
           },
         });
 
-        // =================================================
-        // Người khác đã duyệt trước
-        // =================================================
-
-        if (result.count === 0) {
-          throw new ForbiddenException(
-            'Phiếu này đã được người khác duyệt trước',
-          );
+        if (updateResult.count === 0) {
+          throw new ForbiddenException('Phiếu này đã được xử lý trước');
         }
 
-        daDuyet = true;
-
         // =================================================
-        // Những người CÙNG CẤP còn lại
-        // => mất quyền duyệt
+        // HẾT CẤP DUYỆT
         // =================================================
-
-        await tx.phieuDatHangDuyet.updateMany({
-          where: {
-            phieuId: body.id,
-            capDuyet: currentApprove.capDuyet,
-            trangThai: 'CHO_DUYET',
-            userId: {
-              not: currentUser,
-            },
-          },
-          data: {
-            trangThai: 'MAT_LUOC',
-            ngayDuyet: new Date(),
-          },
-        });
-
-        // =================================================
-        // CẤP TIẾP THEO
-        // =================================================
-
-        if (next && nextUsers.length > 0) {
-          // ------------------------------------------------
-          // Kiểm tra cấp tiếp theo đã tồn tại chưa
-          // ------------------------------------------------
-
-          const existingNext = await tx.phieuDatHangDuyet.findFirst({
+        if (!nextUser) {
+          await tx.phieuDatHangTong.update({
             where: {
-              phieuId: body.id,
-              capDuyet: next.nextCap,
+              id: body.id,
+            },
+            data: {
+              trangThai: 'DA_DUYET',
             },
           });
-
-          // ------------------------------------------------
-          // Chỉ tạo nếu chưa tồn tại
-          // ------------------------------------------------
-
-          if (!existingNext) {
-            await tx.phieuDatHangDuyet.createMany({
-              data: nextUsers.map((user) => ({
-                phieuId: body.id,
-                userId: user.userId,
-                capDuyet: next.nextCap,
-                trangThai: 'CHO_DUYET',
-              })),
-            });
-          }
 
           return;
         }
 
         // =================================================
-        // Không còn cấp tiếp theo
-        // => HOÀN TẤT
+        // TẠO LƯỢT DUYỆT CẤP TIẾP THEO
         // =================================================
-
-        await tx.phieuDatHangTong.update({
-          where: {
-            id: body.id,
-          },
+        await tx.phieuDatHangDuyet.create({
           data: {
-            trangThai: 'DA_DUYET',
+            phieuId: body.id,
+            userId: nextUser.userId,
+            capDuyet: next!.nextCap,
+            trangThai: 'CHO_DUYET',
           },
         });
       });
 
       // ===================================================
-      // Không thành công
+      // EMAIL CẤP TIẾP THEO
       // ===================================================
-
-      if (!daDuyet) {
-        throw new ForbiddenException(
-          'Phiếu này đã được người khác duyệt trước',
-        );
-      }
-
-      // ===================================================
-      // GỬI MAIL CẤP TIẾP THEO
-      // ===================================================
-
-      if (nextUsers.length > 0) {
-        for (const nextUser of nextUsers) {
+      if (nextUser) {
+        if (nextUser.email) {
           await this.mailerService.sendMail({
             to: nextUser.email,
+
             subject: `Phiếu ${phieu.maPhieu} cần duyệt`,
+
             html: `
             <p>Xin chào ${nextUser.fullName},</p>
 
-            <p>Có một phiếu đặt hàng cần bạn duyệt.</p>
+            <p>
+              Phiếu đặt hàng
+              <b>${phieu.maPhieu}</b>
+              đang chờ bạn duyệt.
+            </p>
 
-            <table border="1" cellpadding="6">
+            <table
+              border="1"
+              cellpadding="6"
+              cellspacing="0"
+            >
               <tr>
-                <td>Mã phiếu</td>
+                <td><b>Mã phiếu</b></td>
                 <td>${phieu.maPhieu}</td>
               </tr>
 
               <tr>
-                <td>Nhà cung cấp</td>
+                <td><b>Nhà cung cấp</b></td>
                 <td>${phieu.tenNcc}</td>
               </tr>
 
               <tr>
-                <td>Trạng thái</td>
-                <td>CHỜ DUYỆT</td>
+                <td><b>Người vừa duyệt</b></td>
+                <td>${fullName}</td>
               </tr>
             </table>
 
-            <br/>
+            <br />
 
-            <a href="https://services.benthanhtsc.com/phe-duyet/${phieu.id}">
+            <a
+              href="https://services.benthanhtsc.com/phe-duyet/${phieu.id}"
+            >
               Xem phiếu
             </a>
           `,
           });
-
-          this.socketGateway.notifyUser(nextUser.userId, {
-            type: 'NEW_APPROVAL',
-            phieuId: phieu.id,
-            maPhieu: phieu.maPhieu,
-          });
         }
-      } else {
-        // -------------------------------------------------
-        // Duyệt hoàn tất
-        // -------------------------------------------------
 
+        this.socketGateway.notifyUser(nextUser.userId, {
+          type: 'NEW_APPROVAL',
+          phieuId: phieu.id,
+          maPhieu: phieu.maPhieu,
+        });
+      } else {
+        // người cuối vừa duyệt xong
         this.socketGateway.notifyUser(currentUser, {
           type: 'APPROVED',
           phieuId: phieu.id,
@@ -1617,101 +2486,57 @@ export class DatHangService {
       // ===================================================
       // HISTORY
       // ===================================================
-
       await this.prisma.history.create({
         data: {
           userEdit: fullName,
           module: 'DON-DE-XUAT',
           action: 'DUYỆT',
           recordId: phieu.maPhieu,
-          description:
-            nextUsers.length > 0
-              ? `${fullName} đã duyệt phiếu ${phieu.maPhieu} và chuyển sang cấp ${next.nextCap}`
-              : `${fullName} đã duyệt hoàn tất phiếu ${phieu.maPhieu}`,
+
+          description: nextUser
+            ? `${fullName} đã duyệt phiếu ${phieu.maPhieu} và chuyển cho ${nextUser.fullName}`
+            : `${fullName} đã duyệt hoàn tất phiếu ${phieu.maPhieu}`,
+
           createDate: new Date(),
         },
       });
 
       return {
-        status: 'SUCCESS',
-        message:
-          nextUsers.length > 0
-            ? 'Đã duyệt và chuyển sang cấp tiếp theo'
-            : 'Đã duyệt hoàn tất',
+        message: nextUser
+          ? 'Đã duyệt và chuyển cấp tiếp theo'
+          : 'Đã duyệt hoàn tất',
       };
     }
 
     // =====================================================
-    // TỪ CHỐI
+    // 3. TỪ CHỐI / TRẢ LẠI
     // =====================================================
-
     if (body.action === 'TU_CHOI') {
-      // ---------------------------------------------------
-      // Tìm lượt duyệt của user
-      // ---------------------------------------------------
+      if (!body.lyDoTraLai?.trim()) {
+        throw new BadRequestException('Vui lòng nhập lý do trả lại');
+      }
 
+      // =====================================================
+      // KIỂM TRA ĐÚNG NGƯỜI ĐANG CÓ QUYỀN TỪ CHỐI
+      // =====================================================
       const currentApprove = await this.prisma.phieuDatHangDuyet.findFirst({
         where: {
           phieuId: body.id,
           userId: currentUser,
-        },
-        orderBy: {
-          capDuyet: 'desc',
+          trangThai: 'CHO_DUYET',
         },
       });
 
-      // ---------------------------------------------------
-      // Không có quyền
-      // ---------------------------------------------------
-
       if (!currentApprove) {
-        throw new ForbiddenException('Bạn không có quyền duyệt phiếu này');
+        throw new ForbiddenException(
+          'Bạn không có quyền trả lại phiếu này hoặc phiếu đã được xử lý',
+        );
       }
 
-      // ---------------------------------------------------
-      // Đã duyệt
-      // ---------------------------------------------------
-
-      if (currentApprove.trangThai === 'DA_DUYET') {
-        return {
-          status: 'DA_DUYET',
-          canApprove: false,
-          message: `Phiếu này đã được duyệt`,
-        };
-      }
-
-      // ---------------------------------------------------
-      // Đã từ chối / người khác đã duyệt
-      // ---------------------------------------------------
-
-      if (currentApprove.trangThai === 'TU_CHOI') {
-        return {
-          status: 'TU_CHOI',
-          canApprove: false,
-          message: 'Phiếu này đã được xử lý',
-        };
-      }
-
-      // ---------------------------------------------------
-      // Không còn chờ duyệt
-      // ---------------------------------------------------
-
-      if (currentApprove.trangThai !== 'CHO_DUYET') {
-        throw new ForbiddenException('Bạn không có quyền duyệt phiếu này');
-      }
-
-      // ===================================================
-      // TRANSACTION TỪ CHỐI
-      // ===================================================
-
-      let newPhieu: any;
-
-      await this.prisma.$transaction(async (tx) => {
-        // =================================================
-        // Quan trọng:
-        // chỉ user còn CHO_DUYET mới được từ chối
-        // =================================================
-
+      const newPhieu = await this.prisma.$transaction(async (tx) => {
+        // =====================================================
+        // 1. KHÓA LƯỢT DUYỆT HIỆN TẠI
+        // =====================================================
         const result = await tx.phieuDatHangDuyet.updateMany({
           where: {
             id: currentApprove.id,
@@ -1722,6 +2547,7 @@ export class DatHangService {
           data: {
             trangThai: 'TU_CHOI',
             ngayDuyet: new Date(),
+            ghiChu: body.lyDoTraLai!.trim(),
           },
         });
 
@@ -1731,59 +2557,57 @@ export class DatHangService {
           );
         }
 
-        // =================================================
-        // Cập nhật phiếu
-        // =================================================
-
+        // =====================================================
+        // 2. PHIẾU CŨ -> TRA_LAI
+        // =====================================================
         await tx.phieuDatHangTong.update({
           where: {
             id: body.id,
           },
           data: {
             trangThai: 'TRA_LAI',
-            lyDoTraLai: body.lyDoTraLai,
+            lyDoTraLai: body.lyDoTraLai!.trim(),
           },
         });
 
-        // =================================================
-        // Các user cùng cấp còn lại
-        // => mất quyền xử lý
-        // =================================================
-
+        // =====================================================
+        // 3. HỦY CÁC LƯỢT CHỜ DUYỆT CÒN LẠI
+        // =====================================================
         await tx.phieuDatHangDuyet.updateMany({
           where: {
             phieuId: body.id,
-            capDuyet: currentApprove.capDuyet,
             trangThai: 'CHO_DUYET',
-            userId: {
-              not: currentUser,
-            },
           },
           data: {
-            trangThai: 'MAT_LUOC',
+            trangThai: 'TU_CHOI',
             ngayDuyet: new Date(),
           },
         });
 
-        // =================================================
-        // Tìm mã gốc
-        // =================================================
-
+        // =====================================================
+        // 4. LẤY MÃ GỐC
+        // =====================================================
         let maGoc = phieu.maPhieu;
 
         if (maGoc.includes('.')) {
           maGoc = maGoc.split('.')[0];
         }
 
-        // =================================================
-        // Tìm phiên bản cuối
-        // =================================================
-
+        // =====================================================
+        // 5. TÌM VERSION CUỐI
+        // =====================================================
         const phieuCuoi = await tx.phieuDatHangTong.findFirst({
           where: {
-            maPhieu: {
-              startsWith: maGoc,
-            },
+            OR: [
+              {
+                maPhieu: maGoc,
+              },
+              {
+                maPhieu: {
+                  startsWith: `${maGoc}.`,
+                },
+              },
+            ],
           },
           orderBy: {
             id: 'desc',
@@ -1792,9 +2616,9 @@ export class DatHangService {
 
         let lan = 1;
 
-        if (phieuCuoi?.maPhieu.includes('.')) {
+        if (phieuCuoi?.maPhieu?.includes('.')) {
           const parts = phieuCuoi.maPhieu.split('.');
-          const soLan = Number(parts[1]);
+          const soLan = Number(parts[parts.length - 1]);
 
           if (!Number.isNaN(soLan)) {
             lan = soLan + 1;
@@ -1803,145 +2627,135 @@ export class DatHangService {
 
         const maPhieuMoi = `${maGoc}.${String(lan).padStart(2, '0')}`;
 
-        // =================================================
-        // Tạo phiếu mới
-        // =================================================
-
-        newPhieu = await tx.phieuDatHangTong.create({
+        // =====================================================
+        // 6. COPY PHIẾU TỔNG -> TẠO PHIẾU MỚI
+        // =====================================================
+        const createdPhieu = await tx.phieuDatHangTong.create({
           data: {
             maPhieu: maPhieuMoi,
+
             tenNcc: phieu.tenNcc,
             congTy: phieu.congTy,
             diaChi: phieu.diaChi,
             mst: phieu.mst,
             ghiChuHopDong: phieu.ghiChuHopDong,
+
             fromDate: phieu.fromDate,
             toDate: phieu.toDate,
+
+            thoiGianGiaoHang: phieu.thoiGianGiaoHang,
+
             nguoiGui: phieu.nguoiGui,
-            phieuGocId: phieu.id,
+
             trangThai: 'NHAP',
-            createDate: phieu.createDate,
+
+            phieuGocId: phieu.id,
+
+            lyDoTraLai: null,
+
+            createDate: new Date(),
             modifiedDate: new Date(),
           },
         });
 
-        // =================================================
-        // Copy phieuDatHangDetail
-        // =================================================
-
-        const phieuDatHangDetail = await tx.phieuDatHangDetail.findMany({
+        // =====================================================
+        // 7. CHUYỂN phieuDatHangDetail SANG PHIẾU MỚI
+        // =====================================================
+        await tx.phieuDatHangDetail.updateMany({
           where: {
             phieuId: body.id,
           },
-        });
+          data: {
+            phieuId: createdPhieu.id,
 
-        if (phieuDatHangDetail.length > 0) {
-          await tx.phieuDatHangDetail.createMany({
-            data: phieuDatHangDetail.map((item) => ({
-              phieuId: newPhieu.id,
-              maHang: item.maHang,
-              tenSp: item.tenSp,
-              dvt: item.dvt,
-              donGia: item.donGia,
-              giamGia: item.giamGia,
-              thueSuat: item.thueSuat,
-              soLuong: item.soLuong,
-              soLuongPGDDuyet: null,
-              soLuongGDDuyet: null,
-              giaBan: item.giaBan,
-              ghiChuHangHoa: item.ghiChuHangHoa,
-              canhBao: item.canhBao,
-              slCoTheDat: item.slCoTheDat,
-              tonCuoi: item.tonCuoi,
-              slKhoDat: item.slKhoDat,
-              slTonToiUu: item.slTonToiUu,
-              slBanCuoi: item.slBanCuoi,
-              slNhapNccCuoi: item.slNhapNccCuoi,
-              ngayKhoDat: item.ngayKhoDat,
-            })),
-          });
-        }
-
-        // =================================================
-        // Copy phieuDeXuatDetail
-        // =================================================
-
-        const phieuDeXuatDetail = await tx.phieuDeXuatDetail.findMany({
-          where: {
-            phieuId: body.id,
+            // reset số lượng duyệt
+            soLuongPGDDuyet: null,
+            soLuongGDDuyet: null,
           },
         });
 
-        if (phieuDeXuatDetail.length > 0) {
-          await tx.phieuDeXuatDetail.createMany({
-            data: phieuDeXuatDetail.map((item) => ({
-              phieuId: newPhieu.id,
-              chiNhanh: item.chiNhanh,
-              maHang: item.maHang,
-              tenNhaCungCap: item.tenNhaCungCap,
-              tenHang: item.tenHang,
-              nhapChuyen: item.nhapChuyen,
-              nhapNcc: item.nhapNcc,
-              xuatBan: item.xuatBan,
-              tonCuoi: item.tonCuoi,
-              slKhoDat: item.slKhoDat,
-              giaVon: item.giaVon,
-              giaBan: item.giaBan,
-              canhBao: item.canhBao,
-              ghiChuKho: item.ghiChuKho,
-              thuMuaNhap: item.thuMuaNhap,
-              ngayKhoDat: item.ngayKhoDat,
-              chuThich: item.chuThich,
-              phieuDatHangNhap: item.phieuDatHangNhap,
-            })),
-          });
-        }
+        // =====================================================
+        // 8. CHUYỂN phieuDeXuatDetail SANG PHIẾU MỚI
+        // =====================================================
+        await tx.phieuDeXuatDetail.updateMany({
+          where: {
+            phieuId: body.id,
+          },
+          data: {
+            phieuId: createdPhieu.id,
+          },
+        });
 
-        // =================================================
-        // Thông báo người gửi
-        // =================================================
+        // =====================================================
+        // 9. CHUYỂN xntDetail SANG PHIẾU MỚI
+        // =====================================================
+        await tx.xntDetail.updateMany({
+          where: {
+            phieuId: body.id,
+          },
+          data: {
+            phieuId: createdPhieu.id,
+          },
+        });
 
-        if (phieu.nguoiGui) {
-          this.socketGateway.notifyUser(phieu.nguoiGui, {
-            type: 'REJECT',
-            phieuId: phieu.id,
-            maPhieu: phieu.maPhieu,
-            newPhieuId: newPhieu.id,
-            newMaPhieu: newPhieu.maPhieu,
-            lyDoTraLai: body.lyDoTraLai,
-          });
-        }
+        return createdPhieu;
       });
 
-      // ===================================================
-      // HISTORY
-      // ===================================================
+      // =====================================================
+      // SOCKET BÁO CHO NGƯỜI GỬI
+      // =====================================================
+      if (phieu.nguoiGui) {
+        this.socketGateway.notifyUser(phieu.nguoiGui, {
+          type: 'REJECT',
 
+          phieuId: phieu.id,
+          maPhieu: phieu.maPhieu,
+
+          newPhieuId: newPhieu.id,
+          newMaPhieu: newPhieu.maPhieu,
+
+          lyDoTraLai: body.lyDoTraLai,
+        });
+      }
+
+      // =====================================================
+      // HISTORY
+      // =====================================================
       await this.prisma.history.create({
         data: {
           userEdit: fullName,
           module: 'DON-DE-XUAT',
           action: 'TỪ CHỐI',
+
           recordId: phieu.maPhieu,
+
           description:
             `${fullName} từ chối phiếu ${phieu.maPhieu}. ` +
-            `Lý do: ${body.lyDoTraLai}`,
+            `Lý do: ${body.lyDoTraLai}. ` +
+            `Đã tạo phiếu mới ${newPhieu.maPhieu}`,
+
           createDate: new Date(),
         },
       });
 
       return {
-        status: 'TU_CHOI',
-        message: 'Đã trả lại phiếu',
-        newPhieuId: newPhieu?.id,
-        newMaPhieu: newPhieu?.maPhieu,
+        message: 'Đã trả lại phiếu và tạo phiếu mới',
+
+        oldPhieu: {
+          id: phieu.id,
+          maPhieu: phieu.maPhieu,
+        },
+
+        newPhieu: {
+          id: newPhieu.id,
+          maPhieu: newPhieu.maPhieu,
+        },
       };
     }
 
     // =====================================================
     // ACTION KHÔNG HỢP LỆ
     // =====================================================
-
-    throw new BadRequestException('Thao tác phê duyệt không hợp lệ');
+    throw new BadRequestException('Hành động không hợp lệ');
   }
 }

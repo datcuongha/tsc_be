@@ -5,6 +5,7 @@ import {
   Param,
   Post,
   Query,
+  Req,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -78,6 +79,21 @@ export class DanhmucController {
     const data = XLSX.utils.sheet_to_json(worksheet);
 
     return this.danhmucService.importDmhh(data);
+  }
+
+  // ----- IMPORT ĐỊNH MỨC ----- //
+  @Post('importDinhMuc')
+  @UseInterceptors(FileInterceptor('file'))
+  async importDinhMuc(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: any,
+  ) {
+    const fullName = req.user.data.fullName;
+    if (!file) {
+      throw new BadRequestException('Không nhận được file');
+    }
+
+    return this.danhmucService.importDinhMuc(file, fullName);
   }
 
   // ----- IMPORT DANH MỤC NCC ----- //
