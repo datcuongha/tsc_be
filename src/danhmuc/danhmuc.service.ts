@@ -317,7 +317,13 @@ export class DanhmucService {
 
   // ----- IMPORT FILE ĐỊNH MỨC
   async importDinhMuc(file: Express.Multer.File, fullName: string) {
+    if (!file) {
+      throw new BadRequestException('Không có file upload');
+    }
+
     const now = new Date();
+
+    const fileBytes = Uint8Array.from(file.buffer);
 
     // Tìm file hiện tại
     const fileOld = await this.prisma.fileTemp.findFirst({
@@ -336,7 +342,7 @@ export class DanhmucService {
         },
         data: {
           fileName: file.originalname,
-          file: file.buffer,
+          file: fileBytes,
           modifiedDate: now,
         },
       });
@@ -345,7 +351,7 @@ export class DanhmucService {
       result = await this.prisma.fileTemp.create({
         data: {
           fileName: file.originalname,
-          file: file.buffer,
+          file: fileBytes,
           createDate: now,
           modifiedDate: now,
         },
@@ -367,6 +373,7 @@ export class DanhmucService {
       message: 'Đã lưu file định mức',
       content: {
         id: result.id,
+        fileName: result.fileName,
         createDate: result.createDate,
         modifiedDate: result.modifiedDate,
       },
