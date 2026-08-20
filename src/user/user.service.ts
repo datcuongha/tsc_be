@@ -616,6 +616,7 @@ export class UserService {
       },
     };
   }
+
   // ----- ĐỔI MẬT KHẨU ----- //
   async changePass(body: any, currentUser: string) {
     const checkUser = await this.prisma.users.findFirst({
@@ -845,10 +846,7 @@ export class UserService {
           where: {
             userName: username,
           },
-          update: {
-            fullName: u.cn || '',
-            email: u.mail || '',
-          },
+          update: {},
           create: {
             userName: username,
             fullName: u.cn || '',

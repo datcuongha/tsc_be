@@ -434,7 +434,6 @@ export class DatHangService {
 
   // ----- CẬP NHẬT THÔNG TIN PHIẾU ĐỀ XUẤT ----- //
   async editDatHangTM(body: any, currentUser: string) {
-    console.log(body);
 
     const checkMaPhieu = await this.prisma.phieuDatHangTong.findFirst({
       where: {

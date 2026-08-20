@@ -231,11 +231,11 @@ export class PythonService {
             data: xntRows.map((row: any) => ({
               phieuId: phieu.id,
               maHang: row['Mã hàng'],
-              chiNhanh: row['Chi nhánh'],
+              chiNhanh: row['Chi nhánh'] || 'Không tồn',
               tenNhaCungCap: row['Thương hiệu'],
-              nhapChuyen: row['Nhập chuyển'],
-              xuatBan: row['Xuất bán'],
-              tonCuoi: row['Tồn cuối kì'],
+              nhapChuyen: row['Nhập chuyển'] || 0,
+              xuatBan: row['Xuất bán'] || 0,
+              tonCuoi: row['Tồn cuối kì'] || 0,
               slTonToiUu: row['SL tồn kho tối ưu'] || 0,
             })),
           });
