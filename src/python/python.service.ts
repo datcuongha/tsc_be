@@ -237,6 +237,7 @@ export class PythonService {
               xuatBan: row['Xuất bán'] || 0,
               tonCuoi: row['Tồn cuối kì'] || 0,
               slTonToiUu: row['SL tồn kho tối ưu'] || 0,
+              canhBao: row['Cảnh báo'],
             })),
           });
         }
