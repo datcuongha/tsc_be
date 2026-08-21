@@ -317,11 +317,6 @@ export class DatHangService {
 
     const field = approve.capDuyet === 1 ? 'soLuongPGDDuyet' : 'soLuongGDDuyet';
 
-    // const fieldLabel =
-    //   approve.capDuyet === 1
-    //     ? 'Phó giám đốc duyệt số lượng'
-    //     : 'Giám đốc duyệt số lượng';
-
     // Lưu dữ liệu cũ trước khi update
     const oldDataMap = new Map();
 
@@ -404,7 +399,7 @@ export class DatHangService {
       ),
     );
 
-    // Lưu lịch sử
+    // Lưu history
     await this.prisma.history.create({
       data: {
         userEdit: fullName,
