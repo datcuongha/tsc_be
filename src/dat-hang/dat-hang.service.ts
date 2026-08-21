@@ -411,17 +411,13 @@ export class DatHangService {
         module: 'DON-DE-XUAT',
         action:
           approve.capDuyet === 1
-            ? changes.length > 0
-              ? 'PGD TRẢ LẠI'
-              : 'PGD DUYỆT SỐ LƯỢNG'
-            : changes.length > 0
-              ? 'GD TRẢ LẠI'
-              : 'GD DUYỆT SỐ LƯỢNG',
+            ? 'PGĐ ĐÃ CHỈNH SỬA SỐ LƯỢNG'
+            : 'GĐ ĐÃ CHỈNH SỬA SỐ LƯỢNG',
+
         recordId: String(body.id),
-        description:
-          changes.length > 0
-            ? `${approve.capDuyet === 1 ? 'PGĐ' : 'GĐ'} trả lại phiếu ${checkMaPhieu.maPhieu} do điều chỉnh số lượng:\n${changes.join('\n')}`
-            : `${approve.capDuyet === 1 ? 'PGĐ' : 'GĐ'} duyệt số lượng phiếu ${checkMaPhieu.maPhieu}`,
+        description: `${
+          approve.capDuyet === 1 ? 'PGĐ' : 'GĐ'
+        } đã điều chỉnh số lượng phiếu ${checkMaPhieu.maPhieu}:\n${changes.join('\n')}`,
         oldData,
         newData,
       },
@@ -596,8 +592,8 @@ export class DatHangService {
               tonCuoi: item.tonCuoi || 0,
               slKhoDat: item.slKhoDat || 0,
               slTonToiUu: item.slTonToiUu || 0,
-              slBanCuoi: item.slBanCuoi || 0,
-              slNhapNccCuoi: item.slNhapNccCuoi || 0,
+              slBanCuoi: item.xuatBan || 0,
+              slNhapNccCuoi: item.nhapChuyen || 0,
             },
           });
         }
@@ -2811,8 +2807,6 @@ export class DatHangService {
           managerId: true,
         },
       });
-      console.log(userGui);
-      console.log(userGui.managerId);
 
       if (!userGui) {
         throw new BadRequestException('Không tìm thấy người gửi');
