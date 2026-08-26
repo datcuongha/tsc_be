@@ -285,7 +285,7 @@ export class DatHangService {
     };
   }
 
-  // ----- PGD CẬP NHẬP SỐ LƯỢNG ĐƠN ĐỀ XUẤT ----- //
+  // ----- DUYỆT CẬP NHẬP SỐ LƯỢNG ĐƠN ĐỀ XUẤT ----- //
   async editSLPGD(body: any, currentUser: number, fullName: string) {
     const checkMaPhieu = await this.prisma.phieuDatHangTong.findFirst({
       where: {
@@ -404,15 +404,12 @@ export class DatHangService {
       data: {
         userEdit: fullName,
         module: 'DON-DE-XUAT',
-        action:
-          approve.capDuyet === 1
-            ? 'PGĐ ĐÃ CHỈNH SỬA SỐ LƯỢNG'
-            : 'GĐ ĐÃ CHỈNH SỬA SỐ LƯỢNG',
+        action: approve.capDuyet === 1 ? 'PGĐ ĐÃ SỐ LƯỢNG' : 'GĐ ĐÃ SỐ LƯỢNG',
 
         recordId: String(body.id),
         description: `${
           approve.capDuyet === 1 ? 'PGĐ' : 'GĐ'
-        } đã điều chỉnh số lượng phiếu ${checkMaPhieu.maPhieu}:\n${changes.join('\n')}`,
+        } đã duyệt số lượng phiếu ${checkMaPhieu.maPhieu}:\n${changes.join('\n')}`,
         oldData,
         newData,
       },
@@ -425,6 +422,8 @@ export class DatHangService {
 
   // ----- CẬP NHẬT THÔNG TIN PHIẾU ĐỀ XUẤT ----- //
   async editDatHangTM(body: any, currentUser: string) {
+    console.log(body);
+    
     const checkMaPhieu = await this.prisma.phieuDatHangTong.findFirst({
       where: {
         id: body.phieuId,
@@ -660,7 +659,7 @@ export class DatHangService {
     return newData;
   }
 
-  // ----- GỌI ĐƠN HÀNG DUYỆT ----- //
+  // ----- GỌI DUYỆT PHIẾU ----- //
   async getPhieuById(id: number, currentUser: number) {
     const check = await this.prisma.phieuDatHangTong.findUnique({
       where: {

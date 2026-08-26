@@ -206,41 +206,41 @@ model attributes {
 }
 
 model dmhhKiot {
-  id                   Int                   @id @default(autoincrement())
-  createdDate          String?               @db.VarChar(255)
-  masterCode           String?               @db.VarChar(50)
+  id                   Int                  @id @default(autoincrement())
+  createdDate          String?              @db.VarChar(255)
+  masterCode           String?              @db.VarChar(50)
   masterProductId      Int?
-  tradeMarkName        String?               @db.VarChar(50)
+  tradeMarkName        String?              @db.VarChar(50)
   tradeMarkId          Int?
-  taxType              String?               @db.VarChar(255)
-  taxRate              String?               @db.VarChar(50)
-  taxname              String?               @db.VarChar(50)
-  kiotProductId        Int?                  @unique(map: "dmhhKiot_kiotProductId")
+  taxType              String?              @db.VarChar(255)
+  taxRate              String?              @db.VarChar(50)
+  taxname              String?              @db.VarChar(50)
+  kiotProductId        Int?                 @unique(map: "dmhhKiot_kiotProductId")
   retailerId           Int?
-  code                 String?               @db.VarChar(100)
-  barCode              String?               @db.VarChar(50)
-  name                 String?               @db.VarChar(255)
-  fullName             String?               @db.VarChar(255)
+  code                 String?              @db.VarChar(100)
+  barCode              String?              @db.VarChar(50)
+  name                 String?              @db.VarChar(255)
+  fullName             String?              @db.VarChar(255)
   categoryId           Int?
-  categoryName         String?               @db.VarChar(50)
+  categoryName         String?              @db.VarChar(50)
   allowsSale           Boolean?
   type                 Int?
   hasVariants          Boolean?
-  basePrice            Decimal?              @db.Decimal(18, 4)
+  basePrice            Decimal?             @db.Decimal(18, 4)
   weight               Int?
-  unit                 String?               @db.VarChar(20)
+  unit                 String?              @db.VarChar(20)
   conversionValue      Int?
-  modifiedDate         String?               @db.VarChar(255)
+  modifiedDate         String?              @db.VarChar(255)
   isActive             Boolean?
-  description          String?               @db.VarChar(255)
+  description          String?              @db.VarChar(255)
   isRewardPoint        Boolean?
   isLotSerialControl   Boolean?
   isBatchExpireControl Boolean?
-  orderTemplate        String?               @db.VarChar(255)
+  orderTemplate        String?              @db.VarChar(255)
   attributes           attributes[]
   dmhhFast             dmhhFast[]
   dmhhKiotTax          dmhhKiotTax[]
-  dnhhKiotPurchaseTax  dnhhKiotPurchaseTax[]
+  dnhhKiotPurchaseTax  dnhhKiotPurchaseTax?
   inventoriesKiot      inventoriesKiot[]
 }
 
@@ -257,13 +257,11 @@ model dmhhKiotTax {
 
 model dnhhKiotPurchaseTax {
   id            Int       @id @default(autoincrement())
-  kiotProductId Int?
+  kiotProductId Int?      @unique(map: "kiotProductId")
   taxId         Int?
   value         Decimal?  @db.Decimal(18, 4)
   name          String?   @db.VarChar(20)
   dmhhKiot      dmhhKiot? @relation(fields: [kiotProductId], references: [kiotProductId], onDelete: Cascade, map: "dnhhKiotPurchaseTax_ibfk_1")
-
-  @@unique([kiotProductId, taxId], map: "kiotProductId_taxId")
 }
 
 model inventoriesKiot {
