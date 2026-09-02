@@ -6,12 +6,16 @@ import {
   Post,
   Query,
   Req,
+  Res,
+  StreamableFile,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { DanhmucService } from './danhmuc.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import * as XLSX from 'xlsx';
+import type { Response as ExpressResponse } from 'express';
+import { Readable } from 'stream';
 
 @Controller('api/danhMuc')
 export class DanhmucController {
@@ -88,12 +92,37 @@ export class DanhmucController {
     @UploadedFile() file: Express.Multer.File,
     @Req() req: any,
   ) {
-    const fullName = req.user.data.fullName;
+    const fullName = req.user.fullName;
     if (!file) {
       throw new BadRequestException('Không nhận được file');
     }
 
     return this.danhmucService.importDinhMuc(file, fullName);
+  }
+
+  @Get('downloadDinhMuc')
+  async downloadDinhMuc(
+    @Res({ passthrough: true })
+    response: ExpressResponse,
+  ): Promise<StreamableFile> {
+    const { fileName, fileBuffer } =
+      await this.danhmucService.downloadDinhMuc();
+
+    response.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+    );
+
+    response.setHeader('Content-Length', String(fileBuffer.length));
+
+    const fileStream = Readable.from([fileBuffer]);
+
+    return new StreamableFile(fileStream);
   }
 
   // ----- IMPORT DANH MỤC NCC ----- //
