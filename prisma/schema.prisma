@@ -532,6 +532,7 @@ model phieuDeXuatDetail {
   thuMuaNhap       Int?
   ngayKhoDat       DateTime?         @db.Timestamp(0)
   phieuDatHangNhap String?           @db.VarChar(50)
+  soLuongPGDDuyet  Int?
   phieuDatHangTong phieuDatHangTong? @relation(fields: [phieuId], references: [id], onDelete: Cascade, map: "phieuDeXuatDetail_ibfk_1")
 
   @@index([phieuId], map: "phieuId")

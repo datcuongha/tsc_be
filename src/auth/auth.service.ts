@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { createRefToken, createToken, decodeToken } from '../config/jwt.js';
+import { checkRefToken, createRefToken, createToken } from '../config/jwt.js';
 import { ldapLogin } from 'src/config/ldap.services';
 
 @Injectable()
@@ -70,17 +70,19 @@ export class AuthService {
     }
 
     // LẤY QUYỀN CỦA USER
-    const permissions = user.vaiTroId
-      ? await this.prisma.vaiTro_phanQuyen.findMany({
-          where: {
-            vaiTroId: user.vaiTroId,
-          },
-          include: {
-            phanQuyen: true,
-          },
-        })
-      : [];
-    const permissionCodes = permissions.map((item) => item.phanQuyen.code);
+    // const permissions = user.vaiTroId
+    //   ? await this.prisma.vaiTro_phanQuyen.findMany({
+    //       where: {
+    //         vaiTroId: user.vaiTroId,
+    //       },
+    //       include: {
+    //         phanQuyen: true,
+    //       },
+    //     })
+    //   : [];
+    // const permissionCodes = permissions.map((item) => item.phanQuyen.code);
+
+    const permissionCodes = await this.getUserPermissionCodes(user.vaiTroId);
 
     // 🔥 3. TẠO TOKEN
     const token = createToken({
@@ -88,6 +90,7 @@ export class AuthService {
       vaiTroId: user.vaiTroId,
       email: user.email,
       fullName: user.fullName,
+      authType: user.authType,
       permissions: permissionCodes,
     });
 
@@ -115,48 +118,117 @@ export class AuthService {
         },
       },
     });
+
     return {
       message: 'Đăng nhập thành công',
+
       token,
       refreshToken: refToken,
+
+      user: {
+        userId: user.userId,
+        userName: user.userName,
+        fullName: user.fullName,
+        email: user.email,
+        vaiTroId: user.vaiTroId,
+        permissions: permissionCodes,
+      },
     };
   }
 
   // ----- REFRESH TOKEN ----- //
+  // async refreshToken(body: { refreshToken: string }) {
+  //   if (!body.refreshToken) {
+  //     throw new BadRequestException('Thiếu refresh token');
+  //   }
+
+  //   let decoded: any;
+  //   try {
+  //     decoded = decodeToken(body.refreshToken);
+  //   } catch {
+  //     throw new UnauthorizedException({
+  //       message: 'Refresh token không hợp lệ',
+  //       code: 'INVALID_REFRESH_TOKEN',
+  //     });
+  //   }
+
+  //   const user = await this.prisma.users.findFirst({
+  //     where: {
+  //       userId: decoded.data.userId,
+  //       status: true,
+  //     },
+  //   });
+
+  //   if (!user || !user.refreshToken) {
+  //     throw new UnauthorizedException('User không hợp lệ');
+  //   }
+
+  //   // so sánh token
+  //   const isMatch = await bcrypt.compare(body.refreshToken, user.refreshToken);
+
+  //   if (!isMatch) {
+  //     throw new UnauthorizedException('Refresh token không đúng');
+  //   }
+
+  //   // 👉 chỉ tạo access token mới
+  //   const newAccessToken = createToken({
+  //     userId: user.userId,
+  //     vaiTroId: user.vaiTroId,
+  //     email: user.email,
+  //     logo: user.logo,
+  //     fullName: user.fullName,
+  //     authType: user.authType,
+  //   });
+
+  //   return {
+  //     message: 'Refresh token thành công',
+  //     token: newAccessToken,
+  //     refreshToken: body.refreshToken, // giữ nguyên
+  //   };
+  // }
   async refreshToken(body: { refreshToken: string }) {
     if (!body.refreshToken) {
       throw new BadRequestException('Thiếu refresh token');
     }
 
     let decoded: any;
+
     try {
-      decoded = decodeToken(body.refreshToken);
+      // Xác minh đúng chữ ký và hạn sử dụng
+      decoded = checkRefToken(body.refreshToken);
     } catch {
       throw new UnauthorizedException({
-        message: 'Refresh token không hợp lệ',
+        message: 'Refresh token không hợp lệ hoặc đã hết hạn',
         code: 'INVALID_REFRESH_TOKEN',
       });
     }
 
+    const userId = Number(decoded?.data?.userId);
+
+    if (!userId) {
+      throw new UnauthorizedException('Refresh token không hợp lệ');
+    }
+
     const user = await this.prisma.users.findFirst({
       where: {
-        userId: decoded.data.userId,
+        userId,
         status: true,
       },
     });
 
     if (!user || !user.refreshToken) {
-      throw new UnauthorizedException('User không hợp lệ');
+      throw new UnauthorizedException('Người dùng không hợp lệ');
     }
 
-    // so sánh token
     const isMatch = await bcrypt.compare(body.refreshToken, user.refreshToken);
 
     if (!isMatch) {
       throw new UnauthorizedException('Refresh token không đúng');
     }
 
-    // 👉 chỉ tạo access token mới
+    // Lấy lại quyền mới nhất từ database
+    const permissionCodes = await this.getUserPermissionCodes(user.vaiTroId);
+
     const newAccessToken = createToken({
       userId: user.userId,
       vaiTroId: user.vaiTroId,
@@ -164,12 +236,51 @@ export class AuthService {
       logo: user.logo,
       fullName: user.fullName,
       authType: user.authType,
+      permissions: permissionCodes,
     });
 
     return {
       message: 'Refresh token thành công',
       token: newAccessToken,
-      refreshToken: body.refreshToken, // giữ nguyên
+      refreshToken: body.refreshToken,
+
+      user: {
+        userId: user.userId,
+        userName: user.userName,
+        fullName: user.fullName,
+        email: user.email,
+        vaiTroId: user.vaiTroId,
+        permissions: permissionCodes,
+      },
     };
+  }
+
+  // ----- CHUẨN HOÁ LẤY QUYỀN CỦA USER ----- //
+  private async getUserPermissionCodes(
+    vaiTroId: number | null,
+  ): Promise<string[]> {
+    if (!vaiTroId) {
+      return [];
+    }
+
+    const permissions = await this.prisma.vaiTro_phanQuyen.findMany({
+      where: {
+        vaiTroId,
+        phanQuyen: {
+          status: true,
+        },
+      },
+      select: {
+        phanQuyen: {
+          select: {
+            code: true,
+          },
+        },
+      },
+    });
+
+    return permissions
+      .map((item) => item.phanQuyen.code)
+      .filter((code): code is string => Boolean(code));
   }
 }

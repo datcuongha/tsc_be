@@ -18,71 +18,6 @@ export class DatHangService {
   prisma = new PrismaClient();
 
   // ----- LẤY TẤT CẢ ĐƠN ĐẶT HÀNG ----- //
-  // async getAllDatHang(currentUser: number) {
-  //   // Lấy danh sách phiếu
-  //   const content = await this.prisma.phieuDatHangTong.findMany({
-  //     include: {
-  //       phieuDatHangDetail: true,
-  //       phieuDeXuatDetail: true,
-  //       phieuDatHangDuyet: {
-  //         include: {
-  //           users: {
-  //             select: {
-  //               userId: true,
-  //               fullName: true,
-  //             },
-  //           },
-  //         },
-  //       },
-  //       xntDetail: true,
-  //     },
-  //     orderBy: {
-  //       id: 'desc',
-  //     },
-  //   });
-
-  //   // Lấy toàn bộ user
-  //   const users = await this.prisma.users.findMany({
-  //     select: {
-  //       userId: true,
-  //       fullName: true,
-  //     },
-  //   });
-
-  //   // Chỉ lấy các phiếu user hiện tại đang chờ duyệt
-  //   const approveList = await this.prisma.phieuDatHangDuyet.findMany({
-  //     where: {
-  //       userId: currentUser,
-  //       trangThai: 'CHO_DUYET',
-  //     },
-  //     select: {
-  //       phieuId: true,
-  //       capDuyet: true,
-  //     },
-  //   });
-
-  //   // Map để tra cứu nhanh O(1)
-  //   const approveMap = new Map(approveList.map((item) => [item.phieuId, item]));
-
-  //   const result = content.map((item) => {
-  //     const user = users.find((u) => u.userId === item.nguoiGui);
-
-  //     const approve = approveMap.get(item.id);
-
-  //     return {
-  //       ...item,
-  //       tenNguoiGui: user?.fullName ?? '',
-  //       canApprove: !!approve,
-  //       capDuyet: approve?.capDuyet ?? null,
-  //     };
-  //   });
-
-  //   return {
-  //     message: 'Thành công',
-  //     content: result,
-  //     date: new Date(),
-  //   };
-  // }
   async getAllDatHang(currentUser: number) {
     // Lấy danh sách phiếu
     const content = await this.prisma.phieuDatHangTong.findMany({
@@ -285,8 +220,323 @@ export class DatHangService {
     };
   }
 
-  // ----- DUYỆT CẬP NHẬP SỐ LƯỢNG ĐƠN ĐỀ XUẤT ----- //
+  // ----- DUYỆT SỐ LƯỢNG ĐƠN ĐỀ XUẤT PGD ----- //
   async editSLPGD(body: any, currentUser: number, fullName: string) {
+    const phieuId = Number(body.id);
+
+    // =====================================================
+    // 1. KIỂM TRA BODY
+    // =====================================================
+
+    if (!Number.isFinite(phieuId)) {
+      throw new BadRequestException('ID phiếu không hợp lệ');
+    }
+
+    if (!Array.isArray(body.phieuDeXuatDetail)) {
+      throw new BadRequestException('phieuDeXuatDetail phải là một mảng');
+    }
+
+    const details = body.phieuDeXuatDetail;
+
+    if (details.length === 0) {
+      throw new BadRequestException('Danh sách chi tiết đề xuất đang trống');
+    }
+
+    // =====================================================
+    // 2. KIỂM TRA PHIẾU
+    // =====================================================
+
+    const checkMaPhieu = await this.prisma.phieuDatHangTong.findFirst({
+      where: {
+        id: phieuId,
+      },
+    });
+
+    if (!checkMaPhieu) {
+      throw new HttpException(
+        {
+          status: HttpStatus.BAD_REQUEST,
+          message: 'Mã phiếu này không tồn tại',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // =====================================================
+    // 3. KIỂM TRA QUYỀN DUYỆT
+    // =====================================================
+
+    const approve = await this.prisma.phieuDatHangDuyet.findFirst({
+      where: {
+        phieuId,
+        userId: currentUser,
+        trangThai: 'CHO_DUYET',
+      },
+    });
+
+    if (!approve) {
+      throw new ForbiddenException('Bạn không có quyền chỉnh sửa phiếu này');
+    }
+
+    const field: 'soLuongPGDDuyet' | 'soLuongGDDuyet' =
+      approve.capDuyet === 1 ? 'soLuongPGDDuyet' : 'soLuongGDDuyet';
+
+    const fieldLabels: Record<string, string> = {
+      soLuongPGDDuyet: 'Phó giám đốc duyệt số lượng',
+      soLuongGDDuyet: 'Giám đốc duyệt số lượng',
+    };
+
+    // =====================================================
+    // 4. LẤY DỮ LIỆU CŨ
+    // =====================================================
+
+    const detailIds = details
+      .map((item: any) => Number(item.id))
+      .filter((id: number) => Number.isFinite(id));
+
+    if (detailIds.length !== details.length) {
+      throw new BadRequestException('Có chi tiết đề xuất không có ID hợp lệ');
+    }
+
+    const oldItems = await this.prisma.phieuDeXuatDetail.findMany({
+      where: {
+        id: {
+          in: detailIds,
+        },
+      },
+    });
+
+    const oldDataMap = new Map<number, any>();
+
+    for (const item of oldItems) {
+      oldDataMap.set(Number(item.id), item);
+    }
+
+    // =====================================================
+    // 5. CHUẨN HÓA VÀ CỘNG THEO MÃ HÀNG
+    // =====================================================
+
+    const normalizedDetails: Array<{
+      id: number;
+      maHang: string;
+      tenHang: string | null;
+      value: number | null;
+      oldItem: any;
+    }> = [];
+
+    const totalByMaHang = new Map<
+      string,
+      {
+        maHang: string;
+        tenHang: string | null;
+        tongSoLuong: number;
+      }
+    >();
+
+    for (const item of details) {
+      const id = Number(item.id);
+      const oldItem: any = oldDataMap.get(id);
+
+      if (!oldItem) {
+        throw new BadRequestException(
+          `Không tìm thấy chi tiết đề xuất ID ${id}`,
+        );
+      }
+
+      const maHang = oldItem.maHang?.toString().trim();
+
+      if (!maHang) {
+        throw new BadRequestException(`Chi tiết ID ${id} không có mã hàng`);
+      }
+
+      let value: number | null = null;
+
+      if (
+        item[field] !== '' &&
+        item[field] !== null &&
+        item[field] !== undefined
+      ) {
+        value = Number(item[field]);
+
+        if (!Number.isFinite(value)) {
+          throw new BadRequestException(`Số lượng mã ${maHang} không hợp lệ`);
+        }
+
+        if (value < 0) {
+          throw new BadRequestException(
+            `Số lượng mã ${maHang} không được nhỏ hơn 0`,
+          );
+        }
+      }
+
+      normalizedDetails.push({
+        id,
+        maHang,
+        tenHang: oldItem.tenHang ?? null,
+        value,
+        oldItem,
+      });
+
+      const current = totalByMaHang.get(maHang);
+
+      totalByMaHang.set(maHang, {
+        maHang,
+        tenHang: oldItem.tenHang ?? null,
+
+        tongSoLuong: (current?.tongSoLuong ?? 0) + (value ?? 0),
+      });
+    }
+
+    // =====================================================
+    // 6. TẠO HISTORY
+    // =====================================================
+
+    const oldData: any[] = [];
+    const newData: any[] = [];
+    const changes: string[] = [];
+
+    for (const item of normalizedDetails) {
+      const oldValue =
+        item.oldItem[field] === null || item.oldItem[field] === undefined
+          ? null
+          : Number(item.oldItem[field]);
+
+      const newValue = item.value;
+
+      if (oldValue === newValue) {
+        continue;
+      }
+
+      changes.push(
+        `${item.maHang} - ${item.tenHang ?? ''}: ` +
+          `${fieldLabels[field]}: ` +
+          `"${oldValue ?? ''}" → "${newValue ?? ''}"`,
+      );
+
+      oldData.push({
+        id: item.id,
+        maHang: item.maHang,
+        [field]: oldValue,
+      });
+
+      newData.push({
+        id: item.id,
+        maHang: item.maHang,
+        [field]: newValue,
+      });
+    }
+
+    console.log(
+      'TỔNG SỐ LƯỢNG THEO MÃ HÀNG:',
+      Array.from(totalByMaHang.values()),
+    );
+
+    // =====================================================
+    // 7. UPDATE DATABASE
+    // =====================================================
+
+    await this.prisma.$transaction(
+      async (tx) => {
+        // -------------------------------------------------
+        // 7.1. Update phiếu đề xuất detail
+        // -------------------------------------------------
+
+        for (const item of normalizedDetails) {
+          await tx.phieuDeXuatDetail.update({
+            where: {
+              id: item.id,
+            },
+            data: {
+              [field]: item.value,
+            },
+          });
+        }
+
+        // -------------------------------------------------
+        // 7.2. Lưu tổng vào phiếu đặt hàng detail
+        // -------------------------------------------------
+
+        for (const product of totalByMaHang.values()) {
+          const updateResult = await tx.phieuDatHangDetail.updateMany({
+            where: {
+              phieuId,
+              maHang: product.maHang,
+            },
+            data: {
+              [field]: product.tongSoLuong,
+            },
+          });
+
+          console.log('CẬP NHẬT PHIẾU ĐẶT HÀNG DETAIL:', {
+            phieuId,
+            maHang: product.maHang,
+            field,
+            tongSoLuong: product.tongSoLuong,
+            updatedRows: updateResult.count,
+          });
+
+          if (updateResult.count === 0) {
+            console.warn(
+              `⚠️ Không tìm thấy mã ` +
+                `${product.maHang} trong ` +
+                `phieuDatHangDetail của phiếu ${phieuId}`,
+            );
+          }
+        }
+
+        // -------------------------------------------------
+        // 7.3. Lưu history
+        // -------------------------------------------------
+
+        if (changes.length > 0) {
+          await tx.history.create({
+            data: {
+              userEdit: fullName,
+              module: 'DON-DE-XUAT',
+
+              action:
+                approve.capDuyet === 1
+                  ? 'PGĐ ĐÃ DUYỆT SỐ LƯỢNG'
+                  : 'GĐ ĐÃ DUYỆT SỐ LƯỢNG',
+
+              recordId: String(phieuId),
+
+              description:
+                `${
+                  approve.capDuyet === 1 ? 'PGĐ' : 'GĐ'
+                } đã duyệt số lượng phiếu ` +
+                `${checkMaPhieu.maPhieu}:\n` +
+                changes.join('\n'),
+
+              oldData,
+              newData,
+            },
+          });
+        }
+      },
+      {
+        maxWait: 10000,
+        timeout: 30000,
+      },
+    );
+
+    // =====================================================
+    // 8. TRẢ KẾT QUẢ
+    // =====================================================
+
+    return {
+      message: 'Cập nhật thành công',
+
+      totals: Array.from(totalByMaHang.values()).map((item) => ({
+        maHang: item.maHang,
+        tenHang: item.tenHang,
+        tongSoLuong: item.tongSoLuong,
+      })),
+    };
+  }
+
+  // ----- DUYỆT SỐ LƯỢNG ĐƠN ĐỀ XUẤT GIÁM ĐỐC ----- //
+  async editSLGD(body: any, currentUser: number, fullName: string) {
     const checkMaPhieu = await this.prisma.phieuDatHangTong.findFirst({
       where: {
         id: body.id,
@@ -422,8 +672,6 @@ export class DatHangService {
 
   // ----- CẬP NHẬT THÔNG TIN PHIẾU ĐỀ XUẤT ----- //
   async editDatHangTM(body: any, currentUser: string) {
-    console.log(body);
-    
     const checkMaPhieu = await this.prisma.phieuDatHangTong.findFirst({
       where: {
         id: body.phieuId,
@@ -2910,7 +3158,7 @@ export class DatHangService {
           <br />
 
           <a
-            href="https://services.benthanhtsc.com/phe-duyet/${data.id}"
+            href="https://services.benthanhtsc.com/phe-duyet-detail/${data.id}"
           >
             Xem phiếu
           </a>

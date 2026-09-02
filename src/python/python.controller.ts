@@ -38,7 +38,7 @@ export class PythonController {
   // ----- XỬ LÝ TỔNG HỢP XUẤT RA PHIÊU ĐẶT HÀNG ----- //
   @Post('processTotal')
   processTotal(@Body() item: any, @Req() req: any) {
-    const currentUser = req.user.data.fullName;
+    const currentUser = req.user.fullName;
     return this.pythonService.processTotal(item, currentUser);
   }
 }

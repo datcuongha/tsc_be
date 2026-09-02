@@ -1,4 +1,10 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 @Injectable()
@@ -74,45 +80,142 @@ export class VaitroService {
     return { message: 'Thành công', data, date: new Date() };
   }
 
-  // ----- VAI TRÒ PHÂN QUYỀN ----- //
+  // ----- GÁN DANH SÁCH QUYỀN CHO VAI TRÒ----- //
   async vaiTroPhanQuyen(body: { vaiTroId: number; phanQuyen: string[] }) {
-    // xoá phân quyền cũ
-    await this.prisma.vaiTro_phanQuyen.deleteMany({
+    const vaiTroId = Number(body.vaiTroId);
+
+    if (!vaiTroId) {
+      throw new BadRequestException('Vai trò không hợp lệ');
+    }
+
+    const role = await this.prisma.vaiTro.findUnique({
       where: {
-        vaiTroId: body.vaiTroId,
+        id: vaiTroId,
       },
     });
 
-    // lấy phân quyền từ code
-    const dsPhanQuyen = await this.prisma.phanQuyen.findMany({
+    if (!role) {
+      throw new NotFoundException('Vai trò không tồn tại');
+    }
+
+    // Chuẩn hóa và loại bỏ code trùng
+    const permissionCodes = [
+      ...new Set(
+        (body.phanQuyen ?? [])
+          .map((code) => String(code).trim().toUpperCase())
+          .filter(Boolean),
+      ),
+    ];
+
+    const permissions =
+      permissionCodes.length > 0
+        ? await this.prisma.phanQuyen.findMany({
+            where: {
+              code: {
+                in: permissionCodes,
+              },
+              status: true,
+            },
+            select: {
+              id: true,
+              code: true,
+            },
+          })
+        : [];
+
+    // Kiểm tra các code không tồn tại
+    const foundCodes = new Set(
+      permissions.map((permission) => permission.code).filter(Boolean),
+    );
+
+    const invalidCodes = permissionCodes.filter(
+      (code) => !foundCodes.has(code),
+    );
+
+    if (invalidCodes.length > 0) {
+      throw new BadRequestException(
+        `Quyền không tồn tại hoặc đã ngừng sử dụng: ${invalidCodes.join(', ')}`,
+      );
+    }
+
+    const data = permissions.map((permission) => ({
+      vaiTroId,
+      phanQuyenId: permission.id,
+    }));
+
+    // Xóa cũ và thêm mới trong cùng transaction
+    await this.prisma.$transaction(async (tx) => {
+      await tx.vaiTro_phanQuyen.deleteMany({
+        where: {
+          vaiTroId,
+        },
+      });
+
+      if (data.length > 0) {
+        await tx.vaiTro_phanQuyen.createMany({
+          data,
+          skipDuplicates: true,
+        });
+      }
+    });
+
+    return {
+      message: 'Cập nhật phân quyền thành công',
+      data: {
+        vaiTroId,
+        phanQuyen: permissionCodes,
+      },
+      date: new Date(),
+    };
+  }
+
+  // ----- LẤY QUYỀN CỦA MỘT VAI TRÒ ----- //
+  async getVaiTroPhanQuyen(vaiTroId: number) {
+    const role = await this.prisma.vaiTro.findUnique({
       where: {
-        code: {
-          in: body.phanQuyen,
+        id: Number(vaiTroId),
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    if (!role) {
+      throw new NotFoundException('Vai trò không tồn tại');
+    }
+
+    const rolePermissions = await this.prisma.vaiTro_phanQuyen.findMany({
+      where: {
+        vaiTroId: Number(vaiTroId),
+        phanQuyen: {
+          status: true,
+        },
+      },
+      select: {
+        phanQuyen: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            module: true,
+          },
+        },
+      },
+      orderBy: {
+        phanQuyen: {
+          module: 'asc',
         },
       },
     });
 
-    // map data
-    const data = dsPhanQuyen.map((i) => ({
-      vaiTroId: body.vaiTroId,
-      phanQuyenId: i.id,
-    }));
-
-    // thêm vào bảng vaiTro_phanQuyen
-    await this.prisma.vaiTro_phanQuyen.createMany({
-      data,
-    });
-    return { message: 'Thành công', data, date: new Date() };
-  }
-
-  async getVaiTroPhanQuyen(vaiTroId: number) {
-    const data = await this.prisma.vaiTro_phanQuyen.findMany({
-      where: { vaiTroId: vaiTroId },
-      include: {
-        phanQuyen: true,
+    return {
+      message: 'Thành công',
+      content: {
+        vaiTro: role,
+        phanQuyen: rolePermissions.map((item) => item.phanQuyen),
       },
-    });
-
-    return data.map((item) => item.phanQuyen.code);
+      date: new Date(),
+    };
   }
 }

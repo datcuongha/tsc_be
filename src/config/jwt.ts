@@ -6,7 +6,7 @@ const REF_JWT_SECRET = process.env.REF_JWT_SECRET as string;
 export const createToken = (data: object) => {
   return jwt.sign({ data }, JWT_SECRET, {
     algorithm: 'HS256',
-    expiresIn: '30m',
+    expiresIn: '60m',
   });
 };
 
@@ -17,9 +17,9 @@ export const createRefToken = (data: object) => {
   });
 };
 
-export const decodeToken = (token: string) => {
-  return jwt.decode(token);
-};
+// export const decodeToken = (token: string) => {
+//   return jwt.decode(token);
+// };
 
 export const checkToken = (token: string) => {
   return jwt.verify(token, JWT_SECRET);

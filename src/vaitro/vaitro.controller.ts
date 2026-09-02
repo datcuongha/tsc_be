@@ -6,6 +6,7 @@ import {
   Patch,
   Param,
   Delete,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { VaitroService } from './vaitro.service';
 
@@ -30,14 +31,15 @@ export class VaitroController {
     return this.vaitroService.editRole(body);
   }
 
-  // ----- VAI TRO - PHÂN QUYỀN ----- //
+  // ----- GÁN DANH SÁCH QUYỀN CHO VAI TRÒ----- //
   @Post('vaiTroPhanQuyen')
   vaiTroPhanQuyen(@Body() body: { vaiTroId: number; phanQuyen: string[] }) {
     return this.vaitroService.vaiTroPhanQuyen(body);
   }
 
-  @Get('getVaiTroPhanQuyen')
-  getVaiTroPhanQuyen(@Param('vaiTroId') vaiTroId: string) {
-    return this.vaitroService.getVaiTroPhanQuyen(+vaiTroId);
+  // ----- LẤY QUYỀN CỦA MỘT VAI TRÒ ----- //
+  @Get('getVaiTroPhanQuyen/:vaiTroId')
+  getVaiTroPhanQuyen(@Param('vaiTroId', ParseIntPipe) vaiTroId: number) {
+    return this.vaitroService.getVaiTroPhanQuyen(vaiTroId);
   }
 }

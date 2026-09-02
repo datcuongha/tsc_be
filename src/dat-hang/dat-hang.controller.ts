@@ -18,29 +18,37 @@ export class DatHangController {
   // ----- LẤY TÁT CẢ ĐƠN ĐẶT HÀNG ----- //
   @Get('getAllDatHang')
   getAllDatHang(@Req() req: any) {
-    const currentUser = req.user.data.userId;
+    const currentUser = req.user.userId;
     return this.datHangService.getAllDatHang(currentUser);
   }
 
   // ----- CẬP NHẬP THÔNG TIN ĐƠN ĐỀ XUẤT ----- //
   @Post('editDonDeXuat')
   editDonDeXuat(@Body() body: any, @Req() req: any) {
-    const currentUser = req.user.data.fullName;
+    const currentUser = req.user.fullName;
     return this.datHangService.editDonDeXuat(body, currentUser);
   }
 
   // ----- PGD DUYỆT SỐ LƯỢNG ----- //
   @Post('editSLPGD')
   editSLPGD(@Body() body: any, @Req() req: any) {
-    const currentUser = req.user.data.userId;
-    const fullName = req.user.data.fullName;
+    const currentUser = req.user.userId;
+    const fullName = req.user.fullName;
     return this.datHangService.editSLPGD(body, currentUser, fullName);
+  }
+
+  // ----- GD DUYỆT SỐ LƯỢNG ----- //
+  @Post('editSLGD')
+  editSLGD(@Body() body: any, @Req() req: any) {
+    const currentUser = req.user.userId;
+    const fullName = req.user.fullName;
+    return this.datHangService.editSLGD(body, currentUser, fullName);
   }
 
   // ----- CẬP NHẬT THÔNG TIN TM DUYỆT SỐ LƯỢNG ----- //
   @Post('editDatHangTM')
   editDatHangTM(@Body() body: any, @Req() req: any) {
-    const currentUser = req.user.data.fullName;
+    const currentUser = req.user.fullName;
     return this.datHangService.editDatHangTM(body, currentUser);
   }
 
@@ -51,7 +59,7 @@ export class DatHangController {
     @Body() body: { thoiGianGiaoHang: string },
     @Req() req: any,
   ) {
-    const currentUser = req.user.data.fullName;
+    const currentUser = req.user.fullName;
     return this.datHangService.updateThoiHan(
       Number(id),
       body.thoiGianGiaoHang,
@@ -62,14 +70,14 @@ export class DatHangController {
   // ----- DUYỆT PHIẾU CẤP 1 ----- //
   @Get('getPhieuById')
   getPhieuById(@Query('id', ParseIntPipe) id: number, @Req() req: any) {
-    const currentUser = req.user.data.userId;
+    const currentUser = req.user.userId;
     return this.datHangService.getPhieuById(id, currentUser);
   }
 
   @Post('xuLyPheDuyet')
   xuLyPheDuyet(@Body() body: any, @Req() req: any) {
-    const currentUser = req.user.data.userId;
-    const fullName = req.user.data.fullName;
+    const currentUser = req.user.userId;
+    const fullName = req.user.fullName;
     return this.datHangService.xuLyPheDuyet(body, currentUser, fullName);
   }
 }

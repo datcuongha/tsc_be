@@ -21,6 +21,9 @@ import { SoHoaModule } from './so-hoa/so-hoa.module';
 import { HistoryModule } from './history/history.module';
 import { DanhmucModule } from './danhmuc/danhmuc.module';
 import { MailerModule } from '@nestjs-modules/mailer';
+import { AuthGuard } from './config/auth.guard';
+import { APP_GUARD } from '@nestjs/core';
+import { PermissionsGuard } from './config/permissions.guard';
 @Module({
   imports: [
     UserModule,
@@ -67,6 +70,21 @@ import { MailerModule } from '@nestjs-modules/mailer';
   ],
 
   controllers: [AppController],
-  providers: [AppService],
+  // providers: [AppService],
+  providers: [
+    AppService,
+
+    // Guard xác thực token phải chạy trước
+    {
+      provide: APP_GUARD,
+      useClass: AuthGuard,
+    },
+
+    // Guard kiểm tra quyền chạy sau
+    {
+      provide: APP_GUARD,
+      useClass: PermissionsGuard,
+    },
+  ],
 })
 export class AppModule {}

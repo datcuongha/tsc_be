@@ -6,10 +6,9 @@ import {
   Delete,
   Query,
   Req,
-  UseGuards,
 } from '@nestjs/common';
 import { UserService } from './user.service';
-import { AuthGuard } from 'src/config/auth.guard';
+import { Permissions } from 'src/config/permissions';
 
 @Controller('api/user')
 export class UserController {
@@ -17,36 +16,37 @@ export class UserController {
 
   // ----- LẤY THÔNG TIN USER ----- //
   @Get('getAllUser')
+  // @Permissions('ROLE_VIEW')
   getAllUser() {
     return this.userService.getAllUser();
   }
 
   // ----- TẠO USER ----- //
   @Post('createUser')
-  @UseGuards(AuthGuard)
+  // @Permissions('ROLE_CREATE')
   createUser(@Body() body: any, @Req() req: any) {
-    const currentUser = req.user.data.fullName;
+    const currentUser = req.user.fullName;
     return this.userService.createUser(body, currentUser);
   }
 
   // ----- EDIT USER ----- //
   @Post('editUser')
   editUser(@Body() body: any, @Req() req: any) {
-    const currentUser = req.user.data.fullName;
+    const currentUser = req.user.fullName;
     return this.userService.editUser(body, currentUser);
   }
 
   // ----- ĐỔI MẬT KHẨU ----- //
   @Post('changePass')
   changePass(@Body() body: { pass: string }, @Req() req: any) {
-    const currentUser = req.user.data.fullName;
+    const currentUser = req.user.fullName;
     return this.userService.changePass(body, currentUser);
   }
 
   // ----- TẠM NGƯNG USER ----- //
   @Delete('delUser')
   delUser(@Query('id') id: number, @Req() req: any) {
-    const currentUser = req.user.data.fullName;
+    const currentUser = req.user.fullName;
     return this.userService.delUser(id, currentUser);
   }
 
@@ -59,7 +59,7 @@ export class UserController {
   // ----- EDIT THÔNG TIN 1 USER ----- //
   @Post('editUserInfo')
   editUserInfo(@Body() body: any, @Req() req: any) {
-    const currentUser = req.user.data.fullName;
+    const currentUser = req.user.fullName;
     return this.userService.editUserInfo(body, currentUser);
   }
 
